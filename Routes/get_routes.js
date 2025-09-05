@@ -46,9 +46,11 @@ get_router.get("/check", (req, res, next) => {
 
 get_router.get(
   "/admin/system",
+  connectionCheck,
   (req, res, next) => {
     res.locals.table = "system_config";
     res.locals.columns = "id, system_name, system_domain, system_port";
+    //res.locals.where = { session_id: req.tokenid };
     next();
   },
   SQLFile.get_data

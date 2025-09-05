@@ -50,7 +50,7 @@ export const SQLFile = {
   async insert(req, res) {
     const { table, data } = req.body;
     try {
-      const response = await dbManager.insert(table, data);
+      const response = await dbManager.insert(table, data, [""], false);
       if (response) {
         res.json({ messageType: "S", data: response });
       } else {
@@ -104,16 +104,28 @@ export const SQLFile = {
   },
   async get_data(req, res) {
     const { table, columns, data } = res.locals;
+    const { where } = res.locals;
     try {
-      const sql = `SELECT ${columns || "*"} FROM ${table}`;
-      const response = await dbManager.query(sql, data);
-      if (response) {
+      let sql;
+      let params = [];
+      if (!where) {
+        sql = `SELECT ${columns || "*"} FROM ${table}`;
+      } else {
+        const conditions = Object.keys(where)
+          .map((key, idx) => `${key} = ?`)
+          .join(" AND ");
+
+        sql = `SELECT ${columns || "*"} FROM ${table} WHERE ${conditions}`;
+        params = Object.values(where);
+      }
+      const response = await dbManager.query(sql, params);
+      if (response && response.length > 0) {
         res.json({ messageType: "S", data: response[0] });
       } else {
-        throw new Error("Fetch Failed");
+        res.json({ messageType: "E", message: "No data found" });
       }
-    } catch (error) {
-      res.status(500).json({ messageType: "E", meessage: error.message });
+    } catch (err) {
+      res.status(500).json({ messageType: "E", error: err.message });
     }
   },
   async delete(req, res) {
@@ -282,7 +294,6 @@ export const SQLFile = {
   async submit(req, res) {
     const { data, domain, port } = req.body;
     const tokenid = req.tokenid;
-    console.log("tokenid", tokenid);
     const token = req.cookies.token;
     try {
       const query = "SELECT * FROM users WHERE id = ?";
@@ -296,8 +307,9 @@ export const SQLFile = {
         const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
         const payload = {
           Id: "1",
-          payload: JSON.stringify(data),
+          payload: JSON.stringify({ data: data }),
         };
+        console.log(payload);
         const postResponse = await axios({
           method: "POST",
           url: `${serviceUrl}`,
@@ -365,6 +377,19 @@ export const SQLFile = {
         res.json({ messageType: "S", data: response[0] });
       } else {
         throw new Error("Fetch Failed");
+      }
+    } catch (error) {
+      res.status(500).json({ messageType: "E", meessage: error.message });
+    }
+  },
+  async deleteTableData(req, res) {
+    const { table, where } = req.body;
+    try {
+      const response = await dbManager.delete(table, where);
+      if (response) {
+        res.json({ messageType: "S", data: response });
+      } else {
+        throw new Error("Delete Failed");
       }
     } catch (error) {
       res.status(500).json({ messageType: "E", meessage: error.message });

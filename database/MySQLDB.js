@@ -25,14 +25,6 @@ class SQLManager {
     }
   }
   async delete(table, where = {}) {
-    //     // Delete specific row by id
-    // await db.delete("header_fields", { id: "abc123" });
-
-    // // Delete by multiple conditions
-    // await db.delete("header_fields", { field_name: "InvoiceNo", field_type: "string" });
-
-    // // ❗ Delete all rows (no params)
-    // await db.delete("header_fields");
     try {
       let sql;
       let values = [];
@@ -56,19 +48,16 @@ class SQLManager {
         data = [data];
       }
       if (deleteExisting) {
+        console.log("in delete");
         if (data.length === 0) return null;
         this.delete(table);
       }
-
 
       const columns = Object.keys(data[0]);
       const placeholders = "(" + columns.map(() => "?").join(", ") + ")";
       const allValues = data.map((row) => columns.map((col) => row[col]));
       const flatValues = allValues.flat();
-      console.log("Columns:", columns);
       const updateCols = columns.filter((col) => !keyCols?.includes(col));
-      console.log("Update Columns:", updateCols);
-
       const sql = `
     INSERT INTO ${table} (${columns.join(", ")})
     VALUES ${allValues.map(() => placeholders).join(", ")}
@@ -76,10 +65,8 @@ class SQLManager {
       .map((col) => `${col} = VALUES(${col})`)
       .join(", ")}
   `;
-
-      console.log("Insert SQL:", sql);
-      console.log("With values:", flatValues);
-
+      console.log(sql);
+      console.log(flatValues);
       const result = await this.query(sql, flatValues);
       return result;
     } catch (error) {

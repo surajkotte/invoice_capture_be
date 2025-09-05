@@ -65,10 +65,21 @@ post_router.post(
 
 post_router.post(
   "/admin/system",
+  connectionCheck,
   (req, res, next) => {
-    const { system_name, system_port, system_domain } = req.body;
+    const { system_name, system_port, system_domain, id } = req.body;
+    let new_id = id;
+    if (!id || id == null || id?.includes("new")) {
+      new_id = uuidv4();
+    }
     req.body.table = "system_config";
-    req.body.data = { system_domain, system_name, system_port, id: uuidv4() };
+    req.body.data = {
+      system_domain,
+      system_name,
+      system_port,
+      id: new_id,
+      is_default: 0,
+    };
     next();
   },
   SQLFile.insert
@@ -83,8 +94,6 @@ post_router.post(
 post_router.post(
   "/upload",
   (req, res, next) => {
-    console.log("inside upload");
-    console.log(req.file);
     next();
   },
   upload.single("file"),
@@ -99,5 +108,17 @@ post_router.post(
     next();
   },
   SQLFile.submit
+);
+
+post_router.post(
+  "/logout",
+  connectionCheck,
+  (req, res, next) => {
+    req.body.where = { session_id: req.cookies.token };
+    req.body.table = "token_table";
+    res.clearCookie("token");
+    next();
+  },
+  SQLFile.deleteTableData
 );
 export default post_router;

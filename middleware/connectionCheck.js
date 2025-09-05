@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken";
 dotenv.config();
 export const connectionCheck = async (req, res, next) => {
   const token = req.cookies.token;
-  console.log("Token in connectionCheck:", token);
   if (!token)
     return res.status(401).json({ messageType: "E", message: "Unauthorized" });
   try {
