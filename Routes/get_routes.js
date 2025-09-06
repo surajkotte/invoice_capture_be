@@ -29,7 +29,6 @@ get_router.get(
 
 get_router.get("/check", (req, res, next) => {
   const token = req.cookies.token;
-  console.log(token);
   if (!token)
     return res.status(401).json({ messageType: "E", message: "Unauthorized" });
   try {
@@ -58,9 +57,8 @@ get_router.get(
 
 get_router.get(
   "/data",
-  connectionCheck,
+  //  connectionCheck,
   (req, res, next) => {
-    console.log("In get registration data middleware");
     next();
   },
   SQLFile.getRegistartionData

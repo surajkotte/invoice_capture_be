@@ -8,7 +8,6 @@ import axios from "axios";
 import path from "path";
 import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
-import { get } from "http";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -48,9 +47,15 @@ export const SQLFile = {
     }
   },
   async insert(req, res) {
-    const { table, data } = req.body;
+    const { table, data, delFlag } = req.body;
+    console.log(delFlag);
     try {
-      const response = await dbManager.insert(table, data, [""], false);
+      const response = await dbManager.insert(
+        table,
+        data,
+        [""],
+        delFlag === "X" ? true : false
+      );
       if (response) {
         res.json({ messageType: "S", data: response });
       } else {
@@ -167,6 +172,7 @@ export const SQLFile = {
         if (tokenResponse.status === 200) {
           const csrfToken = tokenResponse.headers.get("x-csrf-token");
           const cookies = tokenResponse.headers["set-cookie"]?.join("; ") || "";
+          console.log(cookies.length);
           const data = {
             csrf_token: csrfToken,
             cookie: cookies,
@@ -238,11 +244,11 @@ export const SQLFile = {
       const response2 = await dbManager.query("SELECT * FROM item_fields", []);
       const Header_Fields =
         response1[0]?.map((info) => {
-          return info?.FIELD_LABEL;
+          return info?.field_label;
         }) || [];
       const Item_Fields =
         response2[0]?.map((info) => {
-          return info?.FIELD_LABEL;
+          return info?.field_label;
         }) || [];
       const fileBuffer = fs.readFileSync(pdfPath);
       const base64Data = fileBuffer.toString("base64");
@@ -264,11 +270,15 @@ export const SQLFile = {
               },
               {
                 type: "text",
-                text: `Place all header-related fields in the ${Header_Fields} object. Place all item-related fields in the ${Item_Fields} array.
-        Ensure that:
-        The JSON structure is valid and properly formatted.
-        Field names match exactly as defined in ${Header_Fields} and ${Item_Fields}.
-        Do not add extra fields or values that are not present in the document.`,
+                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.  
+Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.  
+Make sure that:  
+- The JSON structure is valid and properly formatted.  
+- Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
+- No additional fields or values are included that are not present in the document.  
+- Dont include currencies in amounts. Put currecny in currency field
+- Enter tax rate in and tax code intheir respective fields
+`,
               },
             ],
           },
@@ -298,6 +308,7 @@ export const SQLFile = {
     try {
       const query = "SELECT * FROM users WHERE id = ?";
       const user = await dbManager.query(query, [tokenid]);
+      console.log(user);
       const userName = user[0][0]?.username || "";
       const response = await dbManager.query(
         "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
@@ -309,7 +320,6 @@ export const SQLFile = {
           Id: "1",
           payload: JSON.stringify({ data: data }),
         };
-        console.log(payload);
         const postResponse = await axios({
           method: "POST",
           url: `${serviceUrl}`,
@@ -322,6 +332,7 @@ export const SQLFile = {
           httpsAgent: agent,
           data: JSON.stringify(payload),
         });
+        console.log(postResponse);
         if (postResponse.status === 201) {
           const payloadStr = postResponse?.data?.d?.payload;
           let payload = {};
@@ -393,6 +404,44 @@ export const SQLFile = {
       }
     } catch (error) {
       res.status(500).json({ messageType: "E", meessage: error.message });
+    }
+  },
+  async get_data1(table, data) {
+    try {
+      const response = await dbManager.query(table, data);
+      if (response[0].length > 0 && response[0][0]?.id) {
+        return response[0];
+      } else {
+        return false;
+      }
+    } catch (error) {
+      return false;
+    }
+  },
+
+  async delete_data(table, where) {
+    try {
+      const response = await dbManager.delete(table, where);
+      if (response) {
+        return true;
+      } else {
+        throw new Error("not bale to delete");
+      }
+    } catch (err) {
+      return false;
+    }
+  },
+
+  async insert_data(table, user_Info) {
+    try {
+      const response = await dbManager.insert(table, user_Info);
+      if (response[0]?.length != 0) {
+        return true;
+      } else {
+        throw new Error("Unable to insert data");
+      }
+    } catch (err) {
+      return false;
     }
   },
 };

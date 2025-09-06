@@ -47,8 +47,9 @@ class SQLManager {
       if (!Array.isArray(data)) {
         data = [data];
       }
+      console.log(deleteExisting);
       if (deleteExisting) {
-        console.log("in delete");
+        console.log("in dele");
         if (data.length === 0) return null;
         this.delete(table);
       }

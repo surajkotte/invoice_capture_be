@@ -1,7 +1,10 @@
 import express from "express";
 import { SQLFile } from "../database/SQLFile.js";
 import { v4 as uuidv4 } from "uuid";
-import { connectionCheck } from "../middleware/connectionCheck.js";
+import {
+  connectionCheck,
+  system_check,
+} from "../middleware/connectionCheck.js";
 import multer from "multer";
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, "uploads"),
@@ -19,6 +22,7 @@ post_router.post(
     } else {
       req.body.table = "Item_Fields";
     }
+    req.body.delFlag = "X";
     const data = Fields?.map((info) => {
       return {
         id: uuidv4(),
@@ -41,6 +45,7 @@ post_router.post(
     const size = req.body.size;
     const data = { mimetypes, size, id: uuidv4() };
     req.body.data = data;
+    req.body.delFlag = "X";
     next();
   },
   SQLFile.insert
@@ -80,6 +85,7 @@ post_router.post(
       id: new_id,
       is_default: 0,
     };
+    req.body.delFlag = "";
     next();
   },
   SQLFile.insert
@@ -104,7 +110,9 @@ post_router.post(
 post_router.post(
   "/submit",
   connectionCheck,
+  system_check,
   (req, res, next) => {
+    const { domain, port } = req.body;
     next();
   },
   SQLFile.submit
