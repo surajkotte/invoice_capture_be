@@ -129,4 +129,23 @@ post_router.post(
   },
   SQLFile.deleteTableData
 );
+
+post_router.post(
+  "/prompt",
+  connectionCheck,
+  upload.single("file"),
+  (req, res, next) => {
+    next();
+  },
+  SQLFile.uploadPrompt
+);
+
+post_router.post(
+  "/message",
+  connectionCheck,
+  (req, res, next) => {
+    next();
+  },
+  SQLFile.promptData
+);
 export default post_router;

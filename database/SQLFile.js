@@ -5,8 +5,9 @@ import JWT from "jsonwebtoken";
 import dotenv from "dotenv";
 import { Agent } from "https";
 import axios from "axios";
-import path from "path";
+import path, { dirname } from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
@@ -277,7 +278,7 @@ Make sure that:
 - Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
 - No additional fields or values are included that are not present in the document.  
 - Dont include currencies in amounts. Put currecny in currency field
-- Enter tax rate in and tax code intheir respective fields
+- Enter tax rate in and tax code intheir respective fields 
 `,
               },
             ],
@@ -442,6 +443,160 @@ Make sure that:
       }
     } catch (err) {
       return false;
+    }
+  },
+  async uploadPrompt(req, res) {
+    try {
+      const pdfPath = req.file.path;
+      const prompt = req.body.prompt;
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      let mediaType;
+
+      switch (ext) {
+        case ".pdf":
+          mediaType = "application/pdf";
+          break;
+        case ".xml":
+          mediaType = "application/xml";
+          break;
+        case ".txt":
+          mediaType = "text/plain";
+          break;
+        case ".docx":
+          mediaType =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          break;
+        default:
+          return res.status(400).json({ error: "Unsupported file type" });
+      }
+      const response1 = await dbManager.query(
+        "SELECT * FROM header_fields",
+        []
+      );
+      const response2 = await dbManager.query("SELECT * FROM item_fields", []);
+      const Header_Fields =
+        response1[0]?.map((info) => {
+          return info?.field_label;
+        }) || [];
+      const Item_Fields =
+        response2[0]?.map((info) => {
+          return info?.field_label;
+        }) || [];
+      const fileBuffer = fs.readFileSync(pdfPath);
+      const base64Data = fileBuffer.toString("base64");
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 20000,
+        temperature: 1,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: mediaType,
+                  data: base64Data,
+                },
+              },
+              {
+                type: "text",
+                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.  
+Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.  
+Make sure that:  
+- The JSON structure is valid and properly formatted.  
+- Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
+- No additional fields or values are included that are not present in the document.  
+- Dont include currencies in amounts. Put currecny in currency field
+- Enter tax rate in and tax code intheir respective fields 
+- ${prompt}
+`,
+              },
+            ],
+          },
+        ],
+      });
+      const extractedText = response.content[0].text;
+
+      const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
+      let jsonObject = JSON.parse(jsonMatch[1]);
+      res.json({
+        messageType: "S",
+        data: jsonObject,
+        fileName: req.file.filename,
+        base64File: base64Data,
+        fileType: ext,
+        fileSize: req.file.size,
+      });
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      res.status(500).json({ error: "Failed to upload document" });
+    }
+  },
+  async promptData(req, res) {
+    const filename = req.body.filename;
+    const message = req.body.message;
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    console.log(__dirname);
+    const filePath = path.join(__dirname, "..", "uploads", filename);
+    console.log(filePath);
+    try {
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      const fileBuffer = fs.readFileSync(filePath);
+      const base64Data = fileBuffer.toString("base64");
+      const ext = path.extname(filePath).toLowerCase();
+      let mediaType;
+
+      switch (ext) {
+        case ".pdf":
+          mediaType = "application/pdf";
+          break;
+        case ".xml":
+          mediaType = "application/xml";
+          break;
+        case ".txt":
+          mediaType = "text/plain";
+          break;
+        case ".docx":
+          mediaType =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          break;
+        default:
+          return res.status(400).json({ error: "Unsupported file type" });
+      }
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 20000,
+        temperature: 1,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: mediaType,
+                  data: base64Data,
+                },
+              },
+              {
+                type: "text",
+                text: `Fomr the provided base64data answer the question given ${message}`,
+              },
+            ],
+          },
+        ],
+      });
+      console.log(response);
+      const extractedText = response.content[0].text;
+      res.status(200).json({ messageType: "S", data: extractedText });
+    } catch (error) {
+      res.status(500).json({ messageType: "E", message: error.message });
     }
   },
 };
