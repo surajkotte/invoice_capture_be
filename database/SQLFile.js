@@ -1,4 +1,4 @@
-import dbManager from "../DB_Connection/sqlconnection.js";
+import dbManager from "../Connections/sqlconnection.js";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcrypt";
 import JWT from "jsonwebtoken";
@@ -9,6 +9,7 @@ import path, { dirname } from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
+import normalizeResponseData from "../utils/NormalizeData.js";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -586,7 +587,7 @@ Make sure that:
               },
               {
                 type: "text",
-                text: `Fomr the provided base64data answer the question given ${message}`,
+                text: `From the provided base64data answer the question given ${message}`,
               },
             ],
           },
@@ -597,6 +598,178 @@ Make sure that:
       res.status(200).json({ messageType: "S", data: extractedText });
     } catch (error) {
       res.status(500).json({ messageType: "E", message: error.message });
+    }
+  },
+  async mail_upload(filename, size, contentType, content, type, prompt) {
+    try {
+      let mediaType;
+      switch (contentType) {
+        case "application/pdf":
+          mediaType = "application/pdf";
+          break;
+        case ".xml":
+          mediaType = "application/xml";
+          break;
+        case ".txt":
+          mediaType = "text/plain";
+          break;
+        case ".docx":
+          mediaType =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          break;
+        default:
+          return res.status(400).json({ error: "Unsupported file type" });
+      }
+      const response1 = await dbManager.query(
+        "SELECT * FROM header_fields",
+        []
+      );
+      const response2 = await dbManager.query("SELECT * FROM item_fields", []);
+      const Header_Fields =
+        response1[0]?.map((info) => {
+          return info?.field_label;
+        }) || [];
+      const Item_Fields =
+        response2[0]?.map((info) => {
+          return info?.field_label;
+        }) || [];
+      const base64Data = content.toString("base64");
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 20000,
+        temperature: 1,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: mediaType,
+                  data: base64Data,
+                },
+              },
+              {
+                type: "text",
+                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.  
+Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.  
+Make sure that:  
+- The JSON structure is valid and properly formatted.  
+- Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
+- No additional fields or values are included that are not present in the document.  
+- Dont include currencies in amounts. Put currecny in currency field
+- Enter tax rate in and tax code intheir respective fields 
+- ${prompt}
+`,
+              },
+            ],
+          },
+        ],
+      });
+      const extractedText = response.content[0].text;
+
+      const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
+      let jsonObject = JSON.parse(jsonMatch[1]);
+      let normalizedData;
+      if (jsonObject) {
+        normalizedData = normalizeResponseData(jsonObject);
+      }
+      const headerData = response1[0]?.map((field) => {
+        return {
+          [field.Field_name]:
+            normalizedData?.header[field?.field_label.toString()],
+        };
+      });
+      const itemsData = normalizedData?.items?.map((dataItem) => {
+        return response2[0].reduce((acc, field) => {
+          acc[field.Field_name] = dataItem[field.field_label.toString()];
+          return acc;
+        }, {});
+      });
+      const payload = {
+        Id: "1",
+        payload: JSON.stringify({
+          data: {
+            headerData,
+            itemsData,
+            rawFile: base64Data,
+            fileName: filename,
+            fileType: mediaType,
+            filesize: size,
+          },
+        }),
+      };
+      const domain = "mu2r3d53.otxlab.net";
+      const port = "44300";
+      const username = "ap_processor";
+      const password = "Otvim1234!";
+      const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
+      const tokenResponse = await axios({
+        method: "get",
+        url: serviceUrl,
+        headers: {
+          "X-CSRF-Token": "Fetch",
+        },
+        auth: { username, password },
+        httpsAgent: agent,
+      });
+      if (tokenResponse.status === 200) {
+        const csrfToken = tokenResponse.headers.get("x-csrf-token");
+        const cookies = tokenResponse.headers["set-cookie"]?.join("; ") || "";
+        const postResponse = await axios({
+          method: "POST",
+          url: `${serviceUrl}`,
+          headers: {
+            "X-CSRF-Token": csrfToken,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Cookie: cookies,
+          },
+          httpsAgent: agent,
+          data: JSON.stringify(payload),
+        });
+        if (postResponse.status === 201) {
+          const payloadStr = postResponse?.data?.d?.payload;
+          let payload = {};
+
+          if (payloadStr) {
+            payload = JSON.parse(payloadStr);
+          }
+
+          const regid = payload.regid;
+          const fileName = payload.filename;
+          const fileType = payload.filetype;
+          const fileSize = payload.filesize;
+          const post_data = {
+            id: uuidv4(),
+            document_id: regid,
+            domain: domain,
+            port: port,
+            created_user: "BGUSER",
+            file_name: fileName,
+            file_type: "MAIL_PDF",
+            file_size: fileSize,
+            system_name: domain,
+            created_date: new Date(),
+          };
+          const db_response = await dbManager.insert(
+            "registration_data",
+            post_data,
+            ["id"],
+            false
+          );
+          if (db_response) {
+            console.log(post_data);
+          } else {
+            throw new Error("Failed to submit data");
+          }
+        } else {
+          throw new Error("Not able to connect to server");
+        }
+      }
+    } catch (error) {
+      console.log(error);
     }
   },
 };

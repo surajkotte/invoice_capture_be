@@ -9,7 +9,8 @@ const app = express();
 const agent = new Agent({ rejectUnauthorized: false });
 import post_router from "./Routes/post_routes.js";
 import get_router from "./Routes/get_routes.js";
-import dbManager from "./DB_Connection/sqlconnection.js";
+import dbManager from "./Connections/sqlconnection.js";
+import './database/Mail.js'
 app.use(
   cors({
     origin: "http://localhost:5173",
