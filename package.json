@@ -26,6 +26,7 @@
     "mysql2": "^3.14.3",
     "node-imap": "^0.9.6",
     "nodemon": "^3.1.10",
+    "p-limit": "^7.1.1",
     "pdf-parse": "^1.1.1",
     "pdf.js-extract": "^0.2.1",
     "pdfjs-dist": "^5.3.93",

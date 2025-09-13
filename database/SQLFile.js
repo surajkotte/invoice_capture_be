@@ -700,76 +700,102 @@ Make sure that:
           },
         }),
       };
+      const mailauthRes = await dbManager.query(
+        "SELECT csrf_token, cookie, time FROM mail_auth where user = ?",
+        [process.env.SYSTEM_USER]
+      );
+      console.log(mailauthRes[0][0]?.csrf_token);
+      let csrf_token = mailauthRes[0][0]?.csrf_token || "";
+      let cookie = mailauthRes[0][0]?.cookie || "";
+      let timeLimit = mailauthRes[0][0]?.time || "";
       const domain = "mu2r3d53.otxlab.net";
       const port = "44300";
-      const username = "ap_processor";
-      const password = "Otvim1234!";
       const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
-      const tokenResponse = await axios({
-        method: "get",
-        url: serviceUrl,
-        headers: {
-          "X-CSRF-Token": "Fetch",
-        },
-        auth: { username, password },
-        httpsAgent: agent,
-      });
-      if (tokenResponse.status === 200) {
-        const csrfToken = tokenResponse.headers.get("x-csrf-token");
-        const cookies = tokenResponse.headers["set-cookie"]?.join("; ") || "";
-        const postResponse = await axios({
-          method: "POST",
-          url: `${serviceUrl}`,
+      if (mailauthRes[0]?.length == 0) {
+        const username = process.env.SYSTEM_USER;
+        const password = process.env.SYSTEM_PASSWORD;
+        const tokenResponse = await axios({
+          method: "get",
+          url: serviceUrl,
           headers: {
-            "X-CSRF-Token": csrfToken,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Cookie: cookies,
+            "X-CSRF-Token": "Fetch",
           },
+          auth: { username, password },
           httpsAgent: agent,
-          data: JSON.stringify(payload),
         });
-        if (postResponse.status === 201) {
-          const payloadStr = postResponse?.data?.d?.payload;
-          let payload = {};
+        if (tokenResponse.status === 200) {
+          csrf_token = tokenResponse.headers.get("x-csrf-token");
+          cookie = tokenResponse.headers["set-cookie"]?.join("; ") || "";
+          const now = new Date();
 
-          if (payloadStr) {
-            payload = JSON.parse(payloadStr);
+          const hours = now.getHours().toString().padStart(2, "0");
+          const minutes = now.getMinutes().toString().padStart(2, "0");
+          const seconds = now.getSeconds().toString().padStart(2, "0");
+          const timeString = `${hours}:${minutes}:${seconds}`;
+          const updateRes = await dbManager.insert("mail_auth", {
+            user: process.env.SYSTEM_USER,
+            csrf_token: csrf_token,
+            cookie: cookie,
+            updated_at: now,
+            time: timeString,
+          });
+          if (updateRes) {
+            console.log(updateRes);
           }
-
-          const regid = payload.regid;
-          const fileName = payload.filename;
-          const fileType = payload.filetype;
-          const fileSize = payload.filesize;
-          const post_data = {
-            id: uuidv4(),
-            document_id: regid,
-            domain: domain,
-            port: port,
-            created_user: "BGUSER",
-            file_name: fileName,
-            file_type: "MAIL_PDF",
-            file_size: fileSize,
-            system_name: domain,
-            created_date: new Date(),
-          };
-          const db_response = await dbManager.insert(
-            "registration_data",
-            post_data,
-            ["id"],
-            false
-          );
-          if (db_response) {
-            console.log(post_data);
-          } else {
-            throw new Error("Failed to submit data");
-          }
-        } else {
-          throw new Error("Not able to connect to server");
         }
       }
+      const postResponse = await axios({
+        method: "POST",
+        url: `${serviceUrl}`,
+        headers: {
+          "X-CSRF-Token": csrf_token,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Cookie: cookie,
+        },
+        httpsAgent: agent,
+        data: JSON.stringify(payload),
+      });
+      if (postResponse.status === 201) {
+        const payloadStr = postResponse?.data?.d?.payload;
+        let payload = {};
+
+        if (payloadStr) {
+          payload = JSON.parse(payloadStr);
+        }
+
+        const regid = payload.regid;
+        const fileName = payload.filename;
+        const fileType = payload.filetype;
+        const fileSize = payload.filesize;
+        const post_data = {
+          id: uuidv4(),
+          document_id: regid,
+          domain: domain,
+          port: port,
+          created_user: "BGUSER",
+          file_name: fileName,
+          file_type: "MAIL_PDF",
+          file_size: fileSize,
+          system_name: domain,
+          created_date: new Date(),
+        };
+        const db_response = await dbManager.insert(
+          "registration_data",
+          post_data,
+          ["id"],
+          false
+        );
+        if (db_response) {
+          console.log(post_data);
+        } else {
+          throw new Error("Failed to submit data");
+        }
+      } else {
+        throw new Error("Not able to connect to server");
+      }
     } catch (error) {
-      console.log(error);
+      throw error;
     }
   },
 };
