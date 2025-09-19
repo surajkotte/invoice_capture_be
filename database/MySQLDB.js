@@ -47,13 +47,11 @@ class SQLManager {
       if (!Array.isArray(data)) {
         data = [data];
       }
-      console.log(deleteExisting);
       if (deleteExisting) {
         console.log("in dele");
         if (data.length === 0) return null;
         this.delete(table);
       }
-
       const columns = Object.keys(data[0]);
       const placeholders = "(" + columns.map(() => "?").join(", ") + ")";
       const allValues = data.map((row) => columns.map((col) => row[col]));
@@ -66,8 +64,6 @@ class SQLManager {
       .map((col) => `${col} = VALUES(${col})`)
       .join(", ")}
   `;
-      console.log(sql);
-      console.log(flatValues);
       const result = await this.query(sql, flatValues);
       return result;
     } catch (error) {

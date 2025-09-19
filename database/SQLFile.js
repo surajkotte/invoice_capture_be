@@ -381,13 +381,25 @@ Make sure that:
     }
   },
   async getRegistartionData(req, res) {
+    const pageNumber = req?.query?.page || 1;
+    const itemsPerPage = 10;
+    const offSet = (pageNumber - 1) * itemsPerPage;
     try {
+      const countResponse = await dbManager.query(
+        "select count(*) as count from  registration_data"
+      );
       const response = await dbManager.query(
-        "SELECT * FROM registration_data",
+        `SELECT * FROM registration_data order by document_id limit ${itemsPerPage} offset ${offSet}`,
         []
       );
+      const totCount = countResponse[0]?.[0]?.count;
+      console.log(totCount);
+      const data_response = {
+        data: response[0],
+        totalCount: totCount,
+      };
       if (response) {
-        res.json({ messageType: "S", data: response[0] });
+        res.json({ messageType: "S", data: data_response });
       } else {
         throw new Error("Fetch Failed");
       }
@@ -511,6 +523,7 @@ Make sure that:
 - No additional fields or values are included that are not present in the document.  
 - Dont include currencies in amounts. Put currecny in currency field
 - Enter tax rate in and tax code intheir respective fields 
+- Extract all line items
 - ${prompt}
 `,
               },
@@ -600,7 +613,7 @@ Make sure that:
       res.status(500).json({ messageType: "E", message: error.message });
     }
   },
-  async mail_upload(filename, size, contentType, content, type, prompt) {
+  async extract_image(filename, size, contentType, content, type, prompt) {
     try {
       let mediaType;
       switch (contentType) {
@@ -660,6 +673,7 @@ Make sure that:
 - No additional fields or values are included that are not present in the document.  
 - Dont include currencies in amounts. Put currecny in currency field
 - Enter tax rate in and tax code intheir respective fields 
+- Extract all line items
 - ${prompt}
 `,
               },
@@ -700,18 +714,30 @@ Make sure that:
           },
         }),
       };
+      return payload;
+    } catch (error) {
+      throw error;
+    }
+  },
+  async mail_upload(payload) {
+    try {
       const mailauthRes = await dbManager.query(
-        "SELECT csrf_token, cookie, time FROM mail_auth where user = ?",
+        "SELECT csrf_token, cookie, updated_at FROM mail_auth where user = ?",
         [process.env.SYSTEM_USER]
       );
-      console.log(mailauthRes[0][0]?.csrf_token);
       let csrf_token = mailauthRes[0][0]?.csrf_token || "";
       let cookie = mailauthRes[0][0]?.cookie || "";
-      let timeLimit = mailauthRes[0][0]?.time || "";
+      let timeLimit = mailauthRes[0][0]?.updated_at || "";
       const domain = "mu2r3d53.otxlab.net";
       const port = "44300";
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, "0");
+      const minutes = now.getMinutes().toString().padStart(2, "0");
+      const seconds = now.getSeconds().toString().padStart(2, "0");
+      const timeString = `${hours}:${minutes}:${seconds}`;
+      const remainingTime = (now - timeLimit) / (1000 * 60);
       const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
-      if (mailauthRes[0]?.length == 0) {
+      if (mailauthRes[0]?.length == 0 || remainingTime > 30) {
         const username = process.env.SYSTEM_USER;
         const password = process.env.SYSTEM_PASSWORD;
         const tokenResponse = await axios({
@@ -726,12 +752,6 @@ Make sure that:
         if (tokenResponse.status === 200) {
           csrf_token = tokenResponse.headers.get("x-csrf-token");
           cookie = tokenResponse.headers["set-cookie"]?.join("; ") || "";
-          const now = new Date();
-
-          const hours = now.getHours().toString().padStart(2, "0");
-          const minutes = now.getMinutes().toString().padStart(2, "0");
-          const seconds = now.getSeconds().toString().padStart(2, "0");
-          const timeString = `${hours}:${minutes}:${seconds}`;
           const updateRes = await dbManager.insert("mail_auth", {
             user: process.env.SYSTEM_USER,
             csrf_token: csrf_token,
@@ -766,7 +786,6 @@ Make sure that:
 
         const regid = payload.regid;
         const fileName = payload.filename;
-        const fileType = payload.filetype;
         const fileSize = payload.filesize;
         const post_data = {
           id: uuidv4(),
@@ -787,7 +806,6 @@ Make sure that:
           false
         );
         if (db_response) {
-          console.log(post_data);
         } else {
           throw new Error("Failed to submit data");
         }
