@@ -1,108 +1,117 @@
-import imap from "../Connections/MailConfig.js";
+import ImapConfig from "../Connections/MailConfig.js";
+import Imap from "node-imap";
 import { SQLFile } from "./SQLFile.js";
 import { simpleParser } from "mailparser";
 import pLimit from "p-limit";
 const limit = pLimit(3);
 let reconnectTimeout;
+let imap;
 function reconnect() {
   console.log("Reconnecting in 5 seconds...");
-  // Clear any previous reconnection timers to avoid multiple attempts
   clearTimeout(reconnectTimeout);
   reconnectTimeout = setTimeout(() => {
-    // It's often safer to create a new IMAP instance for a clean reconnect
-    // imap = new Imap(imapConfig);
-    // This requires a code refactor, but it's a very robust solution.
-    imap.connect();
+    createAndConnect();
   }, 5000);
 }
 function openInbox(cb) {
   imap.openBox("INBOX", false, cb);
 }
 
-imap.once("ready", () => {
-  console.log("IMAP connected");
+const createAndConnect = () => {
+  imap = new Imap(ImapConfig);
 
-  openInbox((err, box) => {
-    if (err) throw err;
-    console.log(`Inbox opened: ${box.messages.total} messages`);
+  imap.once("ready", () => {
+    console.log("IMAP connected");
 
-    // Listen for new emails
-    imap.on("mail", (numNewMsgs) => {
-      console.log(`${numNewMsgs} new message(s) received`);
+    openInbox((err, box) => {
+      if (err) throw err;
+      console.log(`Inbox opened: ${box.messages.total} messages`);
 
-      // Fetch the latest message
-      const fetch = imap.seq.fetch(
-        box.messages.total + ":" + box.messages.total,
-        {
-          bodies: "",
-          markSeen: true,
-        }
-      );
+      // Listen for new emails
+      imap.on("mail", (numNewMsgs) => {
+        console.log(`${numNewMsgs} new message(s) received`);
 
-      fetch.on("message", (msg, seqno) => {
-        console.log(`Fetching message #${seqno}`);
-        let emailBuffer = "";
+        // Fetch the latest message
+        const fetch = imap.seq.fetch(
+          box.messages.total + ":" + box.messages.total,
+          {
+            bodies: "",
+            markSeen: true,
+          }
+        );
 
-        msg.on("body", (stream, info) => {
-          stream.on("data", (chunk) => {
-            emailBuffer += chunk.toString("utf8");
+        fetch.on("message", (msg, seqno) => {
+          console.log(`Fetching message #${seqno}`);
+          let emailBuffer = "";
+
+          msg.on("body", (stream, info) => {
+            stream.on("data", (chunk) => {
+              emailBuffer += chunk.toString("utf8");
+            });
           });
-        });
 
-        msg.once("end", async () => {
-          simpleParser(emailBuffer, async (err, parsed) => {
-            if (err) {
-              console.error("Parsing error:", err);
-            } else {
-              console.log("From:", parsed.from.text);
-              console.log("Subject:", parsed.subject);
-              console.log("Date:", parsed.date);
-              console.log("Body:", parsed.text);
-              if (parsed.attachments.length > 0) {
-                console.log(`Found ${parsed.attachments.length} attachment(s)`);
-                processAttachments(parsed?.attachments);
+          msg.once("end", async () => {
+            simpleParser(emailBuffer, async (err, parsed) => {
+              if (err) {
+                console.error("Parsing error:", err);
               } else {
-                console.log("No attachments found.");
+                console.log("From:", parsed.from.text);
+                console.log("Subject:", parsed.subject);
+                console.log("Date:", parsed.date);
+                console.log("Body:", parsed.text);
+                if (parsed.attachments.length > 0) {
+                  console.log(
+                    `Found ${parsed.attachments.length} attachment(s)`
+                  );
+                  processAttachments(parsed?.attachments);
+                } else {
+                  console.log("No attachments found.");
+                }
               }
-            }
+            });
           });
+        });
+
+        fetch.once("error", (err) => {
+          console.error("Fetch error:", err);
+        });
+
+        fetch.once("end", () => {
+          console.log("Done fetching new message");
         });
       });
 
-      fetch.once("error", (err) => {
-        console.error("Fetch error:", err);
-      });
-
-      fetch.once("end", () => {
-        console.log("Done fetching new message");
-      });
+      console.log("Listening for new mail...");
     });
-
-    console.log("Listening for new mail...");
   });
-});
+  imap.once("error", (err) => {
+    console.error("IMAP error:", err);
+    console.log("Reconnecting in 5 seconds...");
+    reconnect();
+  });
 
-imap.once("error", (err) => {
-  console.error("IMAP error:", err);
-  console.log("Reconnecting in 5 seconds...");
-  reconnect();
-});
+  imap.once("end", () => {
+    console.log("Connection ended");
+    reconnect();
+  });
+  imap.on("close", (hadError) => {
+    console.log("Connection closed", hadError ? "with error" : "");
+    reconnect();
+  });
+  process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err);
+  });
+  try {
+    imap.connect();
+    console.log("connected to mail");
+  } catch (error) {
+    console.log(error);
+  }
+};
 
-imap.once("end", () => {
-  console.log("Connection ended");
-  reconnect();
-});
-imap.on("close", (hadError) => {
-  console.log("Connection closed", hadError ? "with error" : "");
-  reconnect();
-});
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection:", reason);
-});
+// process.on("unhandledRejection", (reason, promise) => {
+//   console.error("Unhandled Rejection:", reason);
+// });
 async function processAttachments(attachments) {
   const validAttachments = attachments.filter(isValidAttachment);
   console.log(`Processing ${validAttachments.length} valid attachment(s)`);
@@ -174,9 +183,4 @@ async function processAttachment(attachment, index) {
   }
 }
 
-try {
-  imap.connect();
-  console.log("connected to mail");
-} catch (error) {
-  console.log(error);
-}
+createAndConnect();
