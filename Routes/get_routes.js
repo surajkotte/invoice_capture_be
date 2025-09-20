@@ -48,11 +48,12 @@ get_router.get(
   connectionCheck,
   (req, res, next) => {
     res.locals.table = "system_config";
-    res.locals.columns = "id, system_name, system_domain, system_port";
+    res.locals.columns =
+      "id, system_name, system_domain, system_port, is_default";
     //res.locals.where = { session_id: req.tokenid };
     next();
   },
-  SQLFile.get_data
+  SQLFile.get_system_connections
 );
 
 get_router.get(

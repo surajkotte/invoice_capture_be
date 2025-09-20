@@ -10,6 +10,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
 import normalizeResponseData from "../utils/NormalizeData.js";
+import { response } from "express";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -148,52 +149,220 @@ export const SQLFile = {
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
-  async check_connection(req, res) {
-    const { domain, port } = req.body;
-    const token = req.cookies.token;
+  async get_system_connections(req, res) {
+    const { table, columns } = res.locals;
     try {
-      const response = await dbManager.query(
-        "SELECT * FROM token_table WHERE session_id = ?",
-        [token]
+      const sql = `SELECT ${columns || "*"} FROM ${table}`;
+      const dbresponse = await dbManager.query(sql, []);
+      if (!dbresponse || dbresponse[0].length === 0) {
+        throw new Error("No system info found");
+      }
+      const username = process.env.SYSTEM_USER;
+      const password = process.env.SYSTEM_PASSWORD;
+      const results = await Promise.all(
+        dbresponse[0].map(async (systemInfo) => {
+          console.log(systemInfo);
+          const { system_domain: domain, system_port: port } = systemInfo;
+          let connectionStatus = "error";
+
+          try {
+            // get csrf_token + cookie for this system
+            const tokenRows = await SQLFile.get_data1(
+              "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
+              [req.tokenid, domain, port]
+            );
+
+            if (tokenRows?.[0]?.length > 0) {
+              const tokenData = tokenRows[0][0];
+
+              try {
+                const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
+                const response = await axios({
+                  method: "get",
+                  url: serviceUrl,
+                  headers: {
+                    "X-CSRF-Token": tokenData.csrf_token,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    Cookie: tokenData.cookie,
+                  },
+                  httpsAgent: agent,
+                });
+
+                if (response?.status === 200) {
+                  connectionStatus = "active";
+                  return { ...systemInfo, connectionStatus };
+                }
+              } catch (err) {
+                // token invalid → delete + fetch new
+                await SQLFile.delete_data("token_table", {
+                  session_id: req.tokenid,
+                  domain,
+                  port,
+                });
+
+                const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
+                const tokenResponse = await axios({
+                  method: "get",
+                  url: serviceUrl,
+                  headers: { "X-CSRF-Token": "Fetch" },
+                  auth: { username, password },
+                  httpsAgent: agent,
+                });
+
+                if (tokenResponse.status === 200) {
+                  const csrfToken = tokenResponse.headers["x-csrf-token"];
+                  const cookies =
+                    tokenResponse.headers["set-cookie"]?.join("; ") || "";
+
+                  const data = {
+                    csrf_token: csrfToken,
+                    cookie: cookies,
+                    domain,
+                    port,
+                    session_id: req.tokenid,
+                  };
+                  await SQLFile.insert_data("token_table", data);
+
+                  connectionStatus = "active";
+                  return { ...systemInfo, connectionStatus };
+                }
+              }
+            } else {
+              const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
+              const tokenResponse = await axios({
+                method: "get",
+                url: serviceUrl,
+                headers: { "X-CSRF-Token": "Fetch" },
+                auth: { username, password },
+                httpsAgent: agent,
+              });
+
+              if (tokenResponse.status === 200) {
+                const csrfToken = tokenResponse.headers["x-csrf-token"];
+                const cookies =
+                  tokenResponse.headers["set-cookie"]?.join("; ") || "";
+
+                const data = {
+                  csrf_token: csrfToken,
+                  cookie: cookies,
+                  domain,
+                  port,
+                  session_id: req.tokenid,
+                };
+                await SQLFile.insert_data("token_table", data);
+
+                connectionStatus = "active";
+              }
+            }
+          } catch (err) {
+            connectionStatus = "error";
+          }
+
+          return { ...systemInfo, connectionStatus };
+        })
       );
-      if (response[0].length > 0) {
-        return res.json({ messageType: "S", data: [] });
-      } else {
-        const username = "ap_processor";
-        const password = "Otvim1234!";
+      return res.json({
+        messageType: "S",
+        data: results,
+      });
+    } catch (error) {
+      return res.json({ messageType: "E", message: error?.message });
+    }
+  },
+  async check_connection(req, res) {
+    const { id } = req.body;
+    const username = process.env.SYSTEM_USER;
+    const password = process.env.SYSTEM_PASSWORD;
+
+    try {
+      const dbresponse = await dbManager.query(
+        "SELECT * FROM system_config WHERE id = ?",
+        [id]
+      );
+
+      if (!dbresponse[0] || dbresponse[0].length === 0) {
+        throw new Error("System not found. Please save first");
+      }
+
+      const { system_domain: domain, system_port: port } = dbresponse[0][0];
+      let connectionStatus = "error";
+
+      try {
+        // check if token exists in table
+        const tokenRows = await dbManager.query(
+          "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? AND domain = ? AND port = ?",
+          [req.tokenid, domain, port]
+        );
+
+        if (tokenRows?.[0]?.length > 0) {
+          const tokenData = tokenRows[0][0];
+          try {
+            const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
+            const response = await axios({
+              method: "get",
+              url: serviceUrl,
+              headers: {
+                "X-CSRF-Token": tokenData.csrf_token,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                Cookie: tokenData.cookie,
+              },
+              httpsAgent: agent,
+            });
+
+            if (response?.status === 200) {
+              connectionStatus = "active";
+              return res.status(200).json({
+                messageType: "S",
+                data: { ...dbresponse[0][0], connectionStatus },
+              });
+            }
+          } catch (err) {
+            // token invalid → delete + fetch new
+            await SQLFile.delete_data("token_table", {
+              session_id: req.tokenid,
+              domain,
+              port,
+            });
+          }
+        }
+
+        // if no valid token → fetch new one
         const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
         const tokenResponse = await axios({
           method: "get",
           url: serviceUrl,
-          headers: {
-            "X-CSRF-Token": "Fetch",
-          },
+          headers: { "X-CSRF-Token": "Fetch" },
           auth: { username, password },
           httpsAgent: agent,
         });
+
         if (tokenResponse.status === 200) {
-          const csrfToken = tokenResponse.headers.get("x-csrf-token");
+          const csrfToken = tokenResponse.headers["x-csrf-token"];
           const cookies = tokenResponse.headers["set-cookie"]?.join("; ") || "";
-          console.log(cookies.length);
+
           const data = {
             csrf_token: csrfToken,
             cookie: cookies,
             domain,
             port,
-            session_id: token,
+            session_id: req.tokenid,
           };
-          const response = await dbManager.insert("token_table", data);
-          if (response) {
-            res.json({ messageType: "S", data: [] });
-          } else {
-            throw new Error("Connection Failed");
-          }
-        } else {
-          throw new Error("Connection Failed");
+          await SQLFile.insert_data("token_table", data);
+
+          connectionStatus = "active";
         }
+      } catch (err) {
+        connectionStatus = "error";
       }
+
+      return res.status(200).json({
+        messageType: "S",
+        data: { ...dbresponse[0][0], connectionStatus },
+      });
     } catch (error) {
-      res.status(500).json({ messageType: "E", meessage: error.message });
+      return res.status(500).json({ messageType: "E", message: error.message });
     }
   },
   async fetchFields(req, res) {
@@ -382,7 +551,7 @@ Make sure that:
   },
   async getRegistartionData(req, res) {
     const pageNumber = req?.query?.page || 1;
-    const itemsPerPage = 10;
+    const itemsPerPage = 20;
     const offSet = (pageNumber - 1) * itemsPerPage;
     try {
       const countResponse = await dbManager.query(

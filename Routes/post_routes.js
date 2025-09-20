@@ -72,7 +72,8 @@ post_router.post(
   "/admin/system",
   connectionCheck,
   (req, res, next) => {
-    const { system_name, system_port, system_domain, id } = req.body;
+    const { system_name, system_port, system_domain, id, is_default } =
+      req.body;
     let new_id = id;
     if (!id || id == null || id?.includes("new")) {
       new_id = uuidv4();
@@ -83,7 +84,8 @@ post_router.post(
       system_name,
       system_port,
       id: new_id,
-      is_default: 0,
+      session_id: req.tokenid,
+      is_default: is_default ? 1 : 0,
     };
     req.body.delFlag = "";
     next();

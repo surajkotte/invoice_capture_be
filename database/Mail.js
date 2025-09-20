@@ -27,7 +27,55 @@ const createAndConnect = () => {
       if (err) throw err;
       console.log(`Inbox opened: ${box.messages.total} messages`);
 
-      // Listen for new emails
+      imap.search(["UNSEEN"], (err, results) => {
+        if (err) throw err;
+        if (!results || results.length === 0) {
+          console.log("No unread mails found.");
+        } else {
+          console.log(`Found ${results.length} unread mail(s).`);
+
+          const fetch = imap.fetch(results, {
+            bodies: "",
+            markSeen: true,
+          });
+
+          fetch.on("message", (msg, seqno) => {
+            console.log(`Fetching unread message #${seqno}`);
+            let emailBuffer = "";
+
+            msg.on("body", (stream, info) => {
+              stream.on("data", (chunk) => {
+                emailBuffer += chunk.toString("utf8");
+              });
+            });
+
+            msg.once("end", () => {
+              simpleParser(emailBuffer, (err, parsed) => {
+                if (err) console.error("Parsing error:", err);
+                else {
+                  console.log("From:", parsed.from.text);
+                  console.log("Subject:", parsed.subject);
+                  console.log("Date:", parsed.date);
+                  console.log("Body:", parsed.text);
+
+                  if (parsed.attachments.length > 0) {
+                    console.log(
+                      `Found ${parsed.attachments.length} attachment(s)`
+                    );
+                    processAttachments(parsed.attachments);
+                  } else {
+                    console.log("No attachments found.");
+                  }
+                }
+              });
+            });
+          });
+
+          fetch.once("end", () => {
+            console.log("Done fetching unread mails.");
+          });
+        }
+      });
       imap.on("mail", (numNewMsgs) => {
         console.log(`${numNewMsgs} new message(s) received`);
 

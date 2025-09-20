@@ -18,7 +18,7 @@ export const connectionCheck = async (req, res, next) => {
       next();
     } else throw error;
   } catch (err) {
-    res.status(403).json({ messageType: "E", message: "Unauthorized" });
+    res.status(401).json({ messageType: "E", message: "Unauthorized" });
   }
 };
 
