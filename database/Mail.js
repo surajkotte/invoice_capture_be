@@ -3,6 +3,7 @@ import Imap from "node-imap";
 import { SQLFile } from "./SQLFile.js";
 import { simpleParser } from "mailparser";
 import pLimit from "p-limit";
+import PersistentQueue from "../utils/Queue.js";
 const limit = pLimit(3);
 let reconnectTimeout;
 let imap;
@@ -111,7 +112,8 @@ const createAndConnect = () => {
                   console.log(
                     `Found ${parsed.attachments.length} attachment(s)`
                   );
-                  processAttachments(parsed?.attachments);
+                  //processAttachments(parsed?.attachments);
+                  await enqueueAttachments(parsed.attachments);
                 } else {
                   console.log("No attachments found.");
                 }
@@ -157,9 +159,6 @@ const createAndConnect = () => {
   }
 };
 
-// process.on("unhandledRejection", (reason, promise) => {
-//   console.error("Unhandled Rejection:", reason);
-// });
 async function processAttachments(attachments) {
   const validAttachments = attachments.filter(isValidAttachment);
   console.log(`Processing ${validAttachments.length} valid attachment(s)`);
@@ -173,15 +172,15 @@ async function processAttachments(attachments) {
 async function uploadWithRetry(payload, filename, retries = 3) {
   try {
     console.log(`Uploading ${filename}...`);
-    await SQLFile.mail_upload(payload);
-    console.log(`Uploaded ${filename}`);
+    const response = await SQLFile.mail_upload(payload);
+    return { messageType: "S", message: `Uploaded ${filename}` };
   } catch (err) {
     if (retries > 0) {
       console.warn(`Retrying ${filename}, retries left: ${retries}`);
       await new Promise((res) => setTimeout(res, 1000 * (4 - retries)));
       return uploadWithRetry(payload, filename, retries - 1);
     }
-    console.error(`Failed to upload ${filename}:`, err);
+    return { messageType: "E", message: `Upload failed for ${err.message}` };
   }
 }
 async function extractWithRetry(attachment, retries = 3) {
@@ -194,6 +193,7 @@ async function extractWithRetry(attachment, retries = 3) {
       attachment.content || Buffer.alloc(0),
       attachment.type || "unknown"
     );
+    console.log(payload);
     if (!payload || !payload.payload) {
       throw new Error("Invalid extraction result");
     }
@@ -213,16 +213,37 @@ async function extractWithRetry(attachment, retries = 3) {
     return null;
   }
 }
+async function enqueueAttachments(attachments) {
+  const valid = attachments.filter(isValidAttachment);
+  console.log(`Queuing ${valid.length} valid attachment(s)...`);
+
+  for (const att of valid) {
+    const contentBuffer =
+      typeof att.content === "string"
+        ? Buffer.from(att.content, "base64")
+        : att.content || Buffer.alloc(0);
+    attachmentQueue.enqueue({
+      filename: att.filename || "unknown",
+      size: att.size || 0,
+      contentType: att.contentType || "unknown",
+      content: contentBuffer,
+      type: att.type || "unknown",
+      timeAdded: Date.now(),
+    });
+  }
+}
+
 function isValidAttachment(attachment) {
   return attachment.size > 0 && attachment.size < 50 * 1024 * 1024; // max 50 MB
 }
-async function processAttachment(attachment, index) {
+async function processAttachment(attachment) {
   try {
     console.log(`Processing ${attachment.filename}...`);
     const payload = await extractWithRetry(attachment, 3);
     if (payload) {
       console.log(`Extraction successful for ${attachment.filename}`);
-      await uploadWithRetry(payload, attachment.filename, 3);
+      const response = await uploadWithRetry(payload, attachment.filename, 3);
+      return response;
     } else {
       console.log(`Extraction failed after retries for ${attachment.filename}`);
     }
@@ -230,5 +251,6 @@ async function processAttachment(attachment, index) {
     console.error(`Error processing ${attachment.filename}:`, err);
   }
 }
-
+const attachmentQueue = new PersistentQueue("./attachmentsQueue.json");
 createAndConnect();
+attachmentQueue.startProcessing(processAttachment, 5000);

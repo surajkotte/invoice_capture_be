@@ -84,7 +84,6 @@ post_router.post(
       system_name,
       system_port,
       id: new_id,
-      session_id: req.tokenid,
       is_default: is_default ? 1 : 0,
     };
     req.body.delFlag = "";

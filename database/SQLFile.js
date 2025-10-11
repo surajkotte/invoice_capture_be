@@ -446,10 +446,12 @@ Place all item-related fields inside the ${Item_Fields} array, using the exact f
 Make sure that:  
 - The JSON structure is valid and properly formatted.  
 - Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
-- No additional fields or values are included that are not present in the document.  
+- No additional fields or values are included that are not present in the document. 
+- Extract data as it is. 
+- This is mandatory. Convert all non-english words to english.
 - Dont include currencies in amounts. Put currecny in currency field
-- Enter tax rate in and tax code intheir respective fields 
-`,
+- tax rate and taxcode are two diffferent fields. Tax rate contains numeric value where as tax code is a alpha numeric value. Extract in their respective fields
+- Payment terms is a 4 digit alpha numeric value. Its not a description`,
               },
             ],
           },
@@ -816,6 +818,7 @@ Make sure that:
           return info?.field_label;
         }) || [];
       const base64Data = content.toString("base64");
+      console.log(type);
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
@@ -843,6 +846,8 @@ Make sure that:
 - Dont include currencies in amounts. Put currecny in currency field
 - Enter tax rate in and tax code intheir respective fields 
 - Extract all line items
+- Extract all lines. If there are any non-english words convert them to english
+-verify if all line items are extracted
 - ${prompt}
 `,
               },
@@ -968,6 +973,7 @@ Make sure that:
           system_name: domain,
           created_date: new Date(),
         };
+        console.log(post_data);
         const db_response = await dbManager.insert(
           "registration_data",
           post_data,
@@ -975,6 +981,7 @@ Make sure that:
           false
         );
         if (db_response) {
+          return db_response;
         } else {
           throw new Error("Failed to submit data");
         }
