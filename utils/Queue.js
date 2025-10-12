@@ -22,7 +22,7 @@ class PersistentQueue {
       if (!data.trim()) return [];
       return JSON.parse(data);
     } catch (err) {
-      console.warn(`⚠️ Queue file corrupted: ${filePath}. Resetting...`, err);
+      console.warn(`Queue file corrupted: ${filePath}. Resetting...`, err);
       return [];
     }
   }
@@ -35,7 +35,7 @@ class PersistentQueue {
       fs.promises
         .writeFile(filePath, JSON.stringify(data, null, 2), "utf-8")
         .catch((err) => console.error("Failed to save file:", filePath, err));
-    }, 1000); // debounce 1s
+    }, 1000);
   }
 
   _saveAll() {
@@ -64,7 +64,7 @@ class PersistentQueue {
 
     this.queue.push(msg);
     //this._saveToFile(this.queuePath, this.queue);
-    console.log(`📥 Enqueued: ${msg.filename}`);
+    console.log(`Enqueued: ${msg.filename}`);
     return msg.id;
   }
 

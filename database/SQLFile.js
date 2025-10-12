@@ -441,17 +441,24 @@ export const SQLFile = {
               },
               {
                 type: "text",
-                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.  
-Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.  
-Make sure that:  
-- The JSON structure is valid and properly formatted.  
-- Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
-- No additional fields or values are included that are not present in the document. 
-- Extract data as it is. 
-- This is mandatory. Convert all non-english words to english.
-- Dont include currencies in amounts. Put currecny in currency field
-- tax rate and taxcode are two diffferent fields. Tax rate contains numeric value where as tax code is a alpha numeric value. Extract in their respective fields
-- Payment terms is a 4 digit alpha numeric value. Its not a description`,
+                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.
+                Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.
+                Follow these rules strictly:
+                - Extract **all** line items (even if they are partially readable).
+                - The JSON structure is valid and properly formatted.
+                - If any text is not in English, translate it to English before inserting into JSON. 
+                - Put the currency code/symbol (e.g., "USD", "EUR", "INR") only in the "currency" field. 
+                - Keep numeric values as pure numbers — do **not** include currency symbols.   
+                - ✅ Ensure tax fields are extracted correctly:  
+                    - "tax_rate" → numeric value (e.g., 18)  
+                    - "tax_code" → alphanumeric code (e.g., "V1")  
+                - Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.
+                - No additional fields or values are included that are not present in the document.
+                - Extract data as it is.
+                - Do not add any extra fields, notes, or metadata.  
+                - Do not invent or infer values not found in the document. If a field is missing, set it as an empty string ("").  
+                - Payment terms is a 4 digit alpha numeric value. Its not a description
+                `,
               },
             ],
           },
