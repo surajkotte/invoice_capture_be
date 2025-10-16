@@ -10,7 +10,7 @@ const agent = new Agent({ rejectUnauthorized: false });
 import post_router from "./Routes/post_routes.js";
 import get_router from "./Routes/get_routes.js";
 import dbManager from "./Connections/sqlconnection.js";
-import './database/Mail.js'
+import "./database/Mail.js";
 app.use(
   cors({
     origin: "http://localhost:5173",
@@ -31,7 +31,7 @@ app.use(bodyParser.json());
   try {
     await dbManager.connect();
     console.log("Database connection successful. Starting server...");
-    app.listen(3000, () => {
+    app.listen(5000, "0.0.0.0", () => {
       console.log("listening to server 3000");
     });
   } catch (error) {

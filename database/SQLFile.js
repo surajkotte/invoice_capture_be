@@ -10,7 +10,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
 import normalizeResponseData from "../utils/NormalizeData.js";
-import { response } from "express";
+import sharp from "sharp";
+import { Poppler } from "node-poppler";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -386,10 +387,112 @@ export const SQLFile = {
     }
   },
   async upload(req, res) {
+    // try {
+    //   const pdfPath = req.file.path;
+    //   const ext = path.extname(req.file.originalname).toLowerCase();
+    //   let mediaType;
+    //   let base64Data;
+
+    //   switch (ext) {
+    //     case ".pdf":
+    //       mediaType = "application/pdf";
+    //       break;
+    //     case ".xml":
+    //       mediaType = "application/xml";
+    //       break;
+    //     case ".txt":
+    //       mediaType = "text/plain";
+    //       break;
+    //     case ".docx":
+    //       mediaType =
+    //         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    //       break;
+    //     default:
+    //       return res.status(400).json({ error: "Unsupported file type" });
+    //   }
+    //   if (ext === ".pdf") {
+    //     const processedFile = await convertPdfToOptimizedBase64(pdfPath);
+    //     base64Data = processedFile.base64Data;
+    //     mediaType = processedFile.mediaType; // Now it's image/jpeg
+    //   }
+    //   const response1 = await dbManager.query(
+    //     "SELECT * FROM header_fields",
+    //     []
+    //   );
+    //   const response2 = await dbManager.query("SELECT * FROM item_fields", []);
+    //   const Header_Fields =
+    //     response1[0]?.map((info) => {
+    //       return info?.field_label;
+    //     }) || [];
+    //   const Item_Fields =
+    //     response2[0]?.map((info) => {
+    //       return info?.field_label;
+    //     }) || [];
+    //   const fileBuffer = fs.readFileSync(pdfPath);
+    //   //base64Data = fileBuffer.toString("base64");
+    //   console.log(mediaType);
+    //   const response = await anthropic.messages.create({
+    //     model: "claude-sonnet-4-20250514",
+    //     max_tokens: 20000,
+    //     temperature: 1,
+    //     messages: [
+    //       {
+    //         role: "user",
+    //         content: [
+    //           {
+    //             type: "image",
+    //             source: {
+    //               type: "base64",
+    //               media_type: mediaType,
+    //               data: base64Data,
+    //             },
+    //           },
+    //           {
+    //             type: "text",
+    //             text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.
+    //             Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.
+    //             Follow these rules strictly:
+    //             - Extract **all** line items (even if they are partially readable).
+    //             - The JSON structure is valid and properly formatted.
+    //             - If any text is not in English, translate it to English before inserting into JSON.
+    //             - Put the currency code/symbol (e.g., "USD", "EUR", "INR") only in the "currency" field.
+    //             - Keep numeric values as pure numbers — do **not** include currency symbols.
+    //             - ✅ Ensure tax fields are extracted correctly:
+    //                 - "tax_rate" → numeric value (e.g., 18)
+    //                 - "tax_code" → alphanumeric code (e.g., "V1")
+    //             - Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.
+    //             - No additional fields or values are included that are not present in the document.
+    //             - Extract data as it is.
+    //             - Do not add any extra fields, notes, or metadata.
+    //             - Do not invent or infer values not found in the document. If a field is missing, set it as an empty string ("").
+    //             - Payment terms is a 4 digit alpha numeric value. Its not a description
+    //             `,
+    //           },
+    //         ],
+    //       },
+    //     ],
+    //   });
+    //   const extractedText = response.content[0].text;
+
+    //   const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
+    //   let jsonObject = JSON.parse(jsonMatch[1]);
+    //   res.json({
+    //     messageType: "S",
+    //     data: jsonObject,
+    //     fileName: req.file.filename,
+    //     base64File: base64Data,
+    //     fileType: ext,
+    //     fileSize: req.file.size,
+    //   });
+    // } catch (error) {
+    //   console.error("Error uploading document:", error);
+    //   res.status(500).json({ error: "Failed to upload document" });
+    // }
     try {
       const pdfPath = req.file.path;
       const ext = path.extname(req.file.originalname).toLowerCase();
       let mediaType;
+      let base64DataArray = [];
 
       switch (ext) {
         case ".pdf":
@@ -408,19 +511,28 @@ export const SQLFile = {
         default:
           return res.status(400).json({ error: "Unsupported file type" });
       }
+      if (ext === ".pdf") {
+        const processedPages = await convertPdfToOptimizedBase64(pdfPath);
+        base64DataArray = processedPages.map((p) => ({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: p.mediaType,
+            data: p.base64Data,
+          },
+        }));
+      }
+
       const response1 = await dbManager.query(
         "SELECT * FROM header_fields",
         []
       );
       const response2 = await dbManager.query("SELECT * FROM item_fields", []);
+
       const Header_Fields =
-        response1[0]?.map((info) => {
-          return info?.field_label;
-        }) || [];
-      const Item_Fields =
-        response2[0]?.map((info) => {
-          return info?.field_label;
-        }) || [];
+        response1[0]?.map((info) => info?.field_label) || [];
+      const Item_Fields = response2[0]?.map((info) => info?.field_label) || [];
+      console.log("Sending", base64DataArray.length, "pages to Claude...");
       const fileBuffer = fs.readFileSync(pdfPath);
       const base64Data = fileBuffer.toString("base64");
       const response = await anthropic.messages.create({
@@ -431,48 +543,45 @@ export const SQLFile = {
           {
             role: "user",
             content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data: base64Data,
-                },
-              },
+              ...base64DataArray,
               {
                 type: "text",
-                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.
-                Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.
-                Follow these rules strictly:
-                - Extract **all** line items (even if they are partially readable).
-                - The JSON structure is valid and properly formatted.
-                - If any text is not in English, translate it to English before inserting into JSON. 
-                - Put the currency code/symbol (e.g., "USD", "EUR", "INR") only in the "currency" field. 
-                - Keep numeric values as pure numbers — do **not** include currency symbols.   
-                - ✅ Ensure tax fields are extracted correctly:  
-                    - "tax_rate" → numeric value (e.g., 18)  
-                    - "tax_code" → alphanumeric code (e.g., "V1")  
-                - Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.
-                - No additional fields or values are included that are not present in the document.
-                - Extract data as it is.
-                - Do not add any extra fields, notes, or metadata.  
-                - Do not invent or infer values not found in the document. If a field is missing, set it as an empty string ("").  
-                - Payment terms is a 4 digit alpha numeric value. Its not a description
-                `,
+                text: `
+Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
+Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
+
+Follow these rules strictly:
+- Extract **all** line items (even if partially readable).
+- The JSON structure must be valid and properly formatted.
+- If any text is not in English, translate it to English before inserting into JSON.
+- Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
+- Keep numeric values as pure numbers — do **not** include currency symbols or text.
+- ✅ Ensure tax fields are correctly extracted:
+  - "tax_rate" → numeric value (e.g., 18)
+  - "tax_code" → alphanumeric code (e.g., "V1")
+- Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+- The "header_fields" object must contain only header-level fields.
+- The "item_fields" array must contain all extracted line items.
+- No additional fields, notes, or metadata should be added.
+- Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
+- "Payment Terms" must be a 4-character alphanumeric value — not a description.
+- Extract data exactly as it appears in the document (except translations when needed).
+`,
               },
             ],
           },
         ],
       });
-      const extractedText = response.content[0].text;
 
+      const extractedText = response.content[0].text || "";
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
-      let jsonObject = JSON.parse(jsonMatch[1]);
+      const jsonObject = jsonMatch ? JSON.parse(jsonMatch[1]) : {};
+
       res.json({
         messageType: "S",
         data: jsonObject,
         fileName: req.file.filename,
-        base64File: base64Data,
+        base64Files: base64Data,
         fileType: ext,
         fileSize: req.file.size,
       });
@@ -844,18 +953,23 @@ Make sure that:
               },
               {
                 type: "text",
-                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.  
-Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.  
-Make sure that:  
+                text: `
+Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
+Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
+
+Ensure that:
 - The JSON structure is valid and properly formatted.  
-- Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
-- No additional fields or values are included that are not present in the document.  
-- Dont include currencies in amounts. Put currecny in currency field
-- Enter tax rate in and tax code intheir respective fields 
-- Extract all line items
-- Extract all lines. If there are any non-english words convert them to english
--verify if all line items are extracted
-- ${prompt}
+- Field names match exactly with those in ${Header_Fields} and ${Item_Fields} (no underscores or variations).  
+- The "header_fields" object contains only header-level fields.  
+- The "item_fields" array contains all extracted line items.  
+- No additional or unrelated fields are included.  
+- Amounts should not include currencies; put the currency in the "currency" field.  
+- Enter tax rate and tax code in their respective fields.  
+- Extract and include **all** line items from the document.  
+- Translate any non-English words to English before including them.  
+- Verify that all line items are extracted accurately.  
+
+${prompt}
 `,
               },
             ],
@@ -1000,3 +1114,128 @@ Make sure that:
     }
   },
 };
+
+// async function convertPdfToOptimizedBase64(pdfPath) {
+//   const tempDir = path.join(process.cwd(), "uploads");
+//   const poppler = new Poppler();
+//   const fileBase = path.basename(pdfPath, ".pdf");
+//   const outputPrefix = path.join(tempDir, `page_1_${fileBase}`);
+
+//   // 1️⃣ Ensure uploads directory exists
+//   await fs.promises.mkdir(tempDir, { recursive: true });
+
+//   // 2️⃣ Convert to PNG (Poppler adds page suffix automatically)
+//   const options = {
+//     firstPageToConvert: 1,
+//     lastPageToConvert: 5,
+//     pngFile: true,
+//     resolutionXAxis: 300,
+//     resolutionYAxis: 300,
+//   };
+
+//   console.log(`Converting PDF ${pdfPath} to temporary image...`);
+//   await poppler.pdfToCairo(pdfPath, outputPrefix, options);
+
+//   // 3️⃣ Determine actual output file name
+//   const files = await fs.promises.readdir(tempDir);
+//   const matchingFile = files.find(
+//     (f) => f.startsWith(`page_1_${fileBase}`) && f.endsWith(".png")
+//   );
+
+//   if (!matchingFile) {
+//     throw new Error(`Poppler did not generate any PNG for ${pdfPath}`);
+//   }
+
+//   const outputPath = path.join(tempDir, matchingFile);
+
+//   // 4️⃣ Optimize image using Sharp
+//   let imageBuffer;
+//   try {
+//     console.log(`Optimizing image using sharp (${outputPath})...`);
+//     imageBuffer = await sharp(outputPath)
+//       .jpeg({ quality: 90, progressive: true })
+//       .toBuffer();
+//   } catch (sharpError) {
+//     console.error("Sharp failed, falling back to original PNG:", sharpError);
+//     imageBuffer = await fs.promises.readFile(outputPath);
+//   }
+
+//   // 5️⃣ Clean up temp file
+//   await fs.promises
+//     .unlink(outputPath)
+//     .catch((err) =>
+//       console.error(`Failed to clean up temp file ${outputPath}:`, err)
+//     );
+//   console.log(
+//     "Image size (bytes):",
+//     Buffer.byteLength(imageBuffer.toString("base64"), "base64")
+//   );
+//   // 6️⃣ Return Base64
+//   return {
+//     base64Data: imageBuffer.toString("base64"),
+//     mediaType: "image/jpeg",
+//   };
+// }
+
+async function convertPdfToOptimizedBase64(pdfPath) {
+  const tempDir = path.join(process.cwd(), "uploads");
+  const poppler = new Poppler();
+  const fileBase = path.basename(pdfPath, ".pdf");
+  const outputPrefix = path.join(tempDir, `${fileBase}`);
+  await fs.promises.mkdir(tempDir, { recursive: true });
+  const options = {
+    firstPageToConvert: 1,
+    lastPageToConvert: 5,
+    pngFile: true,
+    resolutionXAxis: 300,
+    resolutionYAxis: 300,
+  };
+  console.log(`Converting PDF ${pdfPath} to images...`);
+  await poppler.pdfToCairo(pdfPath, outputPrefix, options);
+  const files = await fs.promises.readdir(tempDir);
+  const matchingFiles = files
+    .filter((f) => f.startsWith(`${fileBase}`) && f.endsWith(".png"))
+    .sort();
+  if (matchingFiles.length === 0) {
+    throw new Error(`Poppler did not generate any PNG for ${pdfPath}`);
+  }
+  const results = [];
+  for (const file of matchingFiles) {
+    const outputPath = path.join(tempDir, file);
+    let imageBuffer;
+    try {
+      console.log(`Optimizing ${file}...`);
+      imageBuffer = await sharp(outputPath)
+        .jpeg({ quality: 90, progressive: true })
+        .toBuffer();
+    } catch (sharpError) {
+      console.error(`Sharp failed on ${file}, using original:`, sharpError);
+      imageBuffer = await fs.promises.readFile(outputPath);
+    }
+    results.push({
+      page: file.match(/(\d+)/)?.[0] || null,
+      base64Data: imageBuffer.toString("base64"),
+      mediaType: "image/jpeg",
+    });
+    await fs.promises
+      .unlink(outputPath)
+      .catch((err) => console.error(`Failed to clean up ${outputPath}:`, err));
+  }
+  return results;
+}
+
+//    type: "text",
+//                 text: `Place all header-related fields inside the ${Header_Fields} object using name header_fields, using the exact field names defined in header_fields.
+// Place all item-related fields inside the ${Item_Fields} array named item_fields, using the exact field names defined in item_fields.
+// Make sure that:
+// - The JSON structure is valid and properly formatted.
+// - Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore.
+// - make sure header fiels come with object ame header_fields and items array come with name item_fields
+// - No additional fields or values are included that are not present in the document.
+// - Dont include currencies in amounts. Put currecny in currency field
+// - Enter tax rate in and tax code intheir respective fields
+// - Extract all line items
+// - Extract all lines. If there are any non-english words convert them to english
+// -verify if all line items are extracted
+// - ${prompt}
+// `,

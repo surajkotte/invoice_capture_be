@@ -131,7 +131,6 @@ class PersistentQueue {
 
     this.intervalId = setInterval(async () => {
       if (this.isProcessing || this.isEmpty()) {
-        console.log("No items to process or already processing.");
         return;
       }
       this.isProcessing = true;
