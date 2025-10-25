@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import normalizeResponseData from "../utils/NormalizeData.js";
 import sharp from "sharp";
 import { Poppler } from "node-poppler";
+import FormData from "form-data";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -1177,6 +1178,53 @@ ${prompt}
 //   };
 // }
 
+// async function convertPdfToOptimizedBase64(pdfPath) {
+//   const tempDir = path.join(process.cwd(), "uploads");
+//   const poppler = new Poppler();
+//   const fileBase = path.basename(pdfPath, ".pdf");
+//   const outputPrefix = path.join(tempDir, `${fileBase}`);
+//   await fs.promises.mkdir(tempDir, { recursive: true });
+//   const options = {
+//     firstPageToConvert: 1,
+//     lastPageToConvert: 5,
+//     pngFile: true,
+//     resolutionXAxis: 300,
+//     resolutionYAxis: 300,
+//   };
+//   console.log(`Converting PDF ${pdfPath} to images...`);
+//   await poppler.pdfToCairo(pdfPath, outputPrefix, options);
+//   const files = await fs.promises.readdir(tempDir);
+//   const matchingFiles = files
+//     .filter((f) => f.startsWith(`${fileBase}`) && f.endsWith(".png"))
+//     .sort();
+//   if (matchingFiles.length === 0) {
+//     throw new Error(`Poppler did not generate any PNG for ${pdfPath}`);
+//   }
+//   const results = [];
+//   for (const file of matchingFiles) {
+//     const outputPath = path.join(tempDir, file);
+//     let imageBuffer;
+//     try {
+//       console.log(`Optimizing ${file}...`);
+//       imageBuffer = await sharp(outputPath)
+//         .jpeg({ quality: 90, progressive: true })
+//         .toBuffer();
+//     } catch (sharpError) {
+//       console.error(`Sharp failed on ${file}, using original:`, sharpError);
+//       imageBuffer = await fs.promises.readFile(outputPath);
+//     }
+//     results.push({
+//       page: file.match(/(\d+)/)?.[0] || null,
+//       base64Data: imageBuffer.toString("base64"),
+//       mediaType: "image/jpeg",
+//     });
+//     await fs.promises
+//       .unlink(outputPath)
+//       .catch((err) => console.error(`Failed to clean up ${outputPath}:`, err));
+//   }
+//   return results;
+// }
+
 async function convertPdfToOptimizedBase64(pdfPath) {
   const tempDir = path.join(process.cwd(), "uploads");
   const poppler = new Poppler();
@@ -1204,12 +1252,20 @@ async function convertPdfToOptimizedBase64(pdfPath) {
     const outputPath = path.join(tempDir, file);
     let imageBuffer;
     try {
-      console.log(`Optimizing ${file}...`);
-      imageBuffer = await sharp(outputPath)
+      console.log(`Processing ${file}...`);
+      // Read the original PNG file
+      imageBuffer = await fs.promises.readFile(outputPath);
+      // Enhance the image using the CV processing endpoint first
+      imageBuffer = await enhanceImageBuffer(imageBuffer, file);
+      // Then optimize with Sharp
+      imageBuffer = await sharp(imageBuffer)
         .jpeg({ quality: 90, progressive: true })
         .toBuffer();
-    } catch (sharpError) {
-      console.error(`Sharp failed on ${file}, using original:`, sharpError);
+    } catch (error) {
+      console.error(
+        `Enhancement or Sharp failed on ${file}, using original:`,
+        error
+      );
       imageBuffer = await fs.promises.readFile(outputPath);
     }
     results.push({
@@ -1224,6 +1280,52 @@ async function convertPdfToOptimizedBase64(pdfPath) {
   return results;
 }
 
+async function enhanceImageBuffer(imageBuffer, filename) {
+  if (!imageBuffer || imageBuffer.length === 0) {
+    throw new Error("Image buffer is empty or null.");
+  }
+
+  console.log(
+    `Sending ${filename} (${(imageBuffer.length / 1024).toFixed(
+      2
+    )} KB) for CV enhancement...`
+  );
+
+  const form = new FormData();
+  form.append("file", imageBuffer, {
+    filename: filename,
+    contentType: "image/png",
+    knownLength: imageBuffer.length,
+  });
+
+  try {
+    const response = await axios.post(
+      "http://localhost:8080/enhance-page",
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+        },
+        responseType: "arraybuffer",
+      }
+    );
+
+    if (response.status !== 200) {
+      throw new Error(
+        `HTTP error! Status: ${
+          response.status
+        }. Body: ${response.data.toString()}`
+      );
+    }
+    return Buffer.from(response.data);
+  } catch (error) {
+    const apiError = new Error(
+      `API communication failed for ${filename}: ${error.message}`
+    );
+    apiError.originalError = error;
+    throw apiError;
+  }
+}
 //    type: "text",
 //                 text: `Place all header-related fields inside the ${Header_Fields} object using name header_fields, using the exact field names defined in header_fields.
 // Place all item-related fields inside the ${Item_Fields} array named item_fields, using the exact field names defined in item_fields.
