@@ -1300,7 +1300,7 @@ async function enhanceImageBuffer(imageBuffer, filename) {
 
   try {
     const response = await axios.post(
-      "http://localhost:8080/enhance-page",
+      "http://localhost:8081/enhance-page",
       form,
       {
         headers: {
