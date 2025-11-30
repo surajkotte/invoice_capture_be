@@ -63,6 +63,7 @@ post_router.post(
 post_router.post(
   "/login",
   (req, res, next) => {
+    console.log("here");
     next();
   },
   SQLFile.login
