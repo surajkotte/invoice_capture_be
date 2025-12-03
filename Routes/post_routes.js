@@ -6,6 +6,7 @@ import {
   system_check,
 } from "../middleware/connectionCheck.js";
 import multer from "multer";
+import { run } from "../util/sceUtil.js";
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, "uploads"),
   filename: (_, file, cb) => cb(null, Date.now() + "-" + file.originalname),
@@ -111,11 +112,17 @@ post_router.post(
 
 post_router.post(
   "/submit",
-  connectionCheck,
-  system_check,
-  (req, res, next) => {
-    const { domain, port } = req.body;
-    next();
+  // connectionCheck,
+  // system_check,
+  async (req, res, next) => {
+    const { data, sceTemplate } = req.body;
+    if (sceTemplate) {
+      const { hash } = await run(data?.fileName);
+      req.body.layoutHash = hash;
+      next();
+    } else {
+      next();
+    }
   },
   SQLFile.submit
 );

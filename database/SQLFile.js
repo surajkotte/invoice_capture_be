@@ -513,15 +513,15 @@ export const SQLFile = {
           return res.status(400).json({ error: "Unsupported file type" });
       }
       if (ext === ".pdf") {
-        const processedPages = await convertPdfToOptimizedBase64(pdfPath);
-        base64DataArray = processedPages.map((p) => ({
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: p.mediaType,
-            data: p.base64Data,
-          },
-        }));
+        // const processedPages = await convertPdfToOptimizedBase64(pdfPath);
+        // base64DataArray = processedPages.map((p) => ({
+        //   type: "image",
+        //   source: {
+        //     type: "base64",
+        //     media_type: p.mediaType,
+        //     data: p.base64Data,
+        //   },
+        // }));
       }
 
       const response1 = await dbManager.query(
@@ -544,7 +544,15 @@ export const SQLFile = {
           {
             role: "user",
             content: [
-              ...base64DataArray,
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: mediaType,
+                  data: base64Data,
+                },
+              },
+              // ...base64DataArray,
               {
                 type: "text",
                 text: `
@@ -592,18 +600,75 @@ Follow these rules strictly:
     }
   },
   async submit(req, res) {
-    const { data, domain, port } = req.body;
+    const { data, domain, port, layoutHash, sceTemplate } = req.body;
     const tokenid = req.tokenid;
     const token = req.cookies.token;
     try {
+      console.log("in submit");
       const query = "SELECT * FROM users WHERE id = ?";
       const user = await dbManager.query(query, [tokenid]);
-      console.log(user);
       const userName = user[0][0]?.username || "";
+      console.log(userName, "token");
+      if (sceTemplate) {
+        const sceHash = await dbManager.query(
+          "SELECT * FROM invoice_templates WHERE layout_hash = ?",
+          [layoutHash]
+        );
+        if (sceHash[0].length > 0) {
+          const updateHash = sceHash[0][0]?.layout_hash || "";
+          if (layoutHash !== updateHash) {
+            await dbManager.update(
+              "invoice_templates",
+              { layout_hash: layoutHash },
+              { template_name: sceTemplate }
+            );
+          }
+        } else {
+          const new_id = uuidv4();
+          const response = await dbManager.insert(
+            "invoice_templates",
+            {
+              id: new_id,
+              template_name: "",
+              created_at: new Date(),
+              layout_hash: layoutHash,
+            },
+            ["id"],
+            false
+          );
+          console.log("Insert Result:", response[0] == true);
+          if (true) {
+            const fieldMappings = Object.entries(sceTemplate).map(
+              ([fieldLabel, fieldValue], index) => ({
+                id: index + 1,
+                template_id: new_id,
+                page_number: fieldValue.page,
+                top_pos: fieldValue.rect.top,
+                left_pos: fieldValue.rect.left,
+                width: fieldValue.rect.width,
+                height: fieldValue.rect.height,
+                field_label: fieldLabel,
+                created_at: new Date(),
+              })
+            );
+            await dbManager.insert(
+              "template_fields",
+              fieldMappings,
+              ["id"],
+              false
+            );
+          } else {
+            console.error("Failed to insert template.");
+          }
+        }
+      }
       const response = await dbManager.query(
         "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
         [token, domain, port]
       );
+      console.log(response, "response");
+      console.log(sceTemplate, hash + "sce template and hash");
+
       if (response[0].length > 0) {
         const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
         const payload = {
@@ -622,6 +687,7 @@ Follow these rules strictly:
           httpsAgent: agent,
           data: JSON.stringify(payload),
         });
+
         console.log(postResponse);
         if (postResponse.status === 201) {
           const payloadStr = postResponse?.data?.d?.payload;
@@ -1114,6 +1180,13 @@ ${prompt}
       throw error;
     }
   },
+  async sceUpload(req, res) {
+    try {
+      const { data, sceTemplate } = req.body;
+    } catch (error) {
+      res.status(500).json({ messageType: "E", meessage: error.message });
+    }
+  },
 };
 
 // async function convertPdfToOptimizedBase64(pdfPath) {
@@ -1227,7 +1300,7 @@ ${prompt}
 
 async function convertPdfToOptimizedBase64(pdfPath) {
   const tempDir = path.join(process.cwd(), "uploads");
-  const poppler = new Poppler();
+  // const poppler = new Poppler();
   const fileBase = path.basename(pdfPath, ".pdf");
   const outputPrefix = path.join(tempDir, `${fileBase}`);
   await fs.promises.mkdir(tempDir, { recursive: true });
@@ -1239,7 +1312,7 @@ async function convertPdfToOptimizedBase64(pdfPath) {
     resolutionYAxis: 300,
   };
   console.log(`Converting PDF ${pdfPath} to images...`);
-  await poppler.pdfToCairo(pdfPath, outputPrefix, options);
+  //await poppler.pdfToCairo(pdfPath, outputPrefix, options);
   const files = await fs.promises.readdir(tempDir);
   const matchingFiles = files
     .filter((f) => f.startsWith(`${fileBase}`) && f.endsWith(".png"))
@@ -1256,7 +1329,7 @@ async function convertPdfToOptimizedBase64(pdfPath) {
       // Read the original PNG file
       imageBuffer = await fs.promises.readFile(outputPath);
       // Enhance the image using the CV processing endpoint first
-      imageBuffer = await enhanceImageBuffer(imageBuffer, file);
+      //imageBuffer = await enhanceImageBuffer(imageBuffer, file);
       // Then optimize with Sharp
       imageBuffer = await sharp(imageBuffer)
         .jpeg({ quality: 90, progressive: true })

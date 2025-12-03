@@ -17,21 +17,26 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(cookieParser());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// If using bodyParser explicitly
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(bodyParser.json());
+
+app.use("/", post_router);
+app.use("/", get_router);
+app.use(express.urlencoded({ extended: true }));
+app.use("/files", express.static(path.join(__dirname, "uploads")));
 (async () => {
   try {
     await dbManager.connect();
     console.log("Database connection successful. Starting server...");
-    app.listen(5000, "0.0.0.0", () => {
+    app.listen(3000, () => {
       console.log("listening to server 3000");
     });
   } catch (error) {
@@ -42,7 +47,3 @@ app.use(bodyParser.json());
     process.exit(1);
   }
 })();
-app.use("/", post_router);
-app.use("/", get_router);
-app.use(express.urlencoded({ extended: true }));
-app.use("/files", express.static(path.join(__dirname, "uploads")));
