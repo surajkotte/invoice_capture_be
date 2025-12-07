@@ -112,8 +112,8 @@ post_router.post(
 
 post_router.post(
   "/submit",
-  // connectionCheck,
-  // system_check,
+  connectionCheck,
+  system_check,
   async (req, res, next) => {
     const { data, sceTemplate } = req.body;
     if (sceTemplate) {

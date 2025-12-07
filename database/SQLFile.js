@@ -13,6 +13,7 @@ import normalizeResponseData from "../utils/NormalizeData.js";
 import sharp from "sharp";
 import { Poppler } from "node-poppler";
 import FormData from "form-data";
+import { extractInvoiceUsingTemplate, extractLayoutSignature, run } from "../util/sceUtil.js";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -491,6 +492,7 @@ export const SQLFile = {
     // }
     try {
       const pdfPath = req.file.path;
+      console.log(req.file)
       const ext = path.extname(req.file.originalname).toLowerCase();
       let mediaType;
       let base64DataArray = [];
@@ -512,6 +514,8 @@ export const SQLFile = {
         default:
           return res.status(400).json({ error: "Unsupported file type" });
       }
+      console.log(ext)
+      console.log(req.file.originalname)
       if (ext === ".pdf") {
         // const processedPages = await convertPdfToOptimizedBase64(pdfPath);
         // base64DataArray = processedPages.map((p) => ({
@@ -522,13 +526,28 @@ export const SQLFile = {
         //     data: p.base64Data,
         //   },
         // }));
+        let {hash, pdfBytes, pdfDoc} = await run(req.file.filename);
+        console.log(hash)
+           const sceHash = await dbManager.query(
+          "SELECT id FROM invoice_templates WHERE layout_hash = ?",
+          [hash]
+        );
+        console.log(sceHash +"sce hash")
+        if(sceHash[0] && sceHash[0][0]){
+          const selectionFields = await dbManager.query("SELECT field_key, field_label, page_number, top_pos,left_pos, width, height FROM template_fields WHERE template_id = ?", [sceHash[0][0].id]);  
+          console.log(sceHash[0][0].id, "template id")
+          console.log(selectionFields, "selection fields")
+          const extractionResult = await extractInvoiceUsingTemplate(pdfBytes, selectionFields[0], pdfDoc);
+          console.log(extractionResult, "extraction result");
+        }
+
       }
 
       const response1 = await dbManager.query(
-        "SELECT * FROM header_fields",
+        "SELECT * FROM Header_Fields",
         []
       );
-      const response2 = await dbManager.query("SELECT * FROM item_fields", []);
+      const response2 = await dbManager.query("SELECT * FROM Item_Fields", []);
 
       const Header_Fields =
         response1[0]?.map((info) => info?.field_label) || [];
@@ -601,6 +620,7 @@ Follow these rules strictly:
   },
   async submit(req, res) {
     const { data, domain, port, layoutHash, sceTemplate } = req.body;
+    console.log(layoutHash, "layout hash in sqlfile");
     const tokenid = req.tokenid;
     const token = req.cookies.token;
     try {
@@ -640,7 +660,7 @@ Follow these rules strictly:
           if (true) {
             const fieldMappings = Object.entries(sceTemplate).map(
               ([fieldLabel, fieldValue], index) => ({
-                id: index + 1,
+                id: index+1,
                 template_id: new_id,
                 page_number: fieldValue.page,
                 top_pos: fieldValue.rect.top,
@@ -667,7 +687,7 @@ Follow these rules strictly:
         [token, domain, port]
       );
       console.log(response, "response");
-      console.log(sceTemplate, hash + "sce template and hash");
+      console.log(sceTemplate, layoutHash + "sce template and hash");
 
       if (response[0].length > 0) {
         const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;

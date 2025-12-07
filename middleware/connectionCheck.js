@@ -12,9 +12,12 @@ export const connectionCheck = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.DECODE_SECRETE);
     const query = "SELECT * FROM users WHERE id = ?";
+    console.log(query)
     const data = [decoded?.id];
+    console.log(data)
     if (SQLFile.check_id(query, data)) {
       req.tokenid = decoded?.id;
+      console.log(decoded?.id)
       next();
     } else throw error;
   } catch (err) {
@@ -30,6 +33,7 @@ export const system_check = async (req, res, next) => {
       "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
       [token, domain, port]
     );
+    console.log(response+" token table")
     if (response) {
       const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
       const tokenResponse = await axios({
@@ -96,6 +100,7 @@ export const system_check = async (req, res, next) => {
         auth: { username, password },
         httpsAgent: agent,
       });
+      console.log(tokenResponse?.status)
       if (tokenResponse.status === 200) {
         const csrfToken = tokenResponse.headers.get("x-csrf-token");
         const cookies = tokenResponse.headers["set-cookie"]?.join("; ") || "";

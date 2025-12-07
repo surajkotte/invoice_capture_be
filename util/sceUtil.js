@@ -2,10 +2,13 @@ import fs from "fs";
 import crypto from "crypto";
 import path from "path";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import { fileURLToPath } from "url";
+import {
+  fileURLToPath
+} from "url";
 
 // Resolve absolute path
-const __filename = fileURLToPath(import.meta.url);
+const __filename = fileURLToPath(
+  import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ABSOLUTE path to node_modules/standard_fonts/
@@ -26,6 +29,7 @@ export async function extractLayoutSignature(pdfPath) {
     .digest("hex");
 
   const data = new Uint8Array(fs.readFileSync(pdfPathResolved));
+  const pdfBytes = data;
   const pdfDoc = await pdfjsLib.getDocument({
     data,
     standardFontDataUrl: standardFontsPath,
@@ -55,7 +59,14 @@ export async function extractLayoutSignature(pdfPath) {
   }
   layout.sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
 
-  return { layout, pdf_fingerprint, supplierName, sample_text };
+  return {
+    layout,
+    pdf_fingerprint,
+    supplierName,
+    sample_text,
+    pdfBytes,
+    pdfDoc
+  };
 }
 
 export function generateStructureHash(layoutArray) {
@@ -66,12 +77,27 @@ export function generateStructureHash(layoutArray) {
 export async function run(pdfPath) {
   try {
     console.log("Extracting layout signature...");
-    const { layout, pdf_fingerprint, supplierName, sample_text } =
-      await extractLayoutSignature(`${pdfPath}`);
+    const {
+      layout,
+      pdf_fingerprint,
+      supplierName,
+      sample_text,
+      pdfBytes,
+      pdfDoc
+    } =
+    await extractLayoutSignature(`${pdfPath}`);
     console.log("Layout count:", layout.length);
     const hash = generateStructureHash(layout);
     console.log("Structure Hash:", hash);
-    return { hash, layout, pdf_fingerprint, supplierName, sample_text };
+    return {
+      hash,
+      layout,
+      pdf_fingerprint,
+      supplierName,
+      sample_text,
+      pdfBytes,
+      pdfDoc
+    };
   } catch (error) {
     console.error("Error in SCE processing:", error);
   }
@@ -84,9 +110,51 @@ export async function extractSampleText(pdfData) {
 
   return content.items.map((i) => i.str).join(" ");
 }
+
 function extractSupplierName(text) {
   const regex =
     /(invoice|bill|vendor|vendor number|vendor name) from[:\s]*([A-Za-z0-9 &.-]+)/i;
   const match = text.match(regex);
   return match ? match[2].trim() : null;
+}
+export async function extractInvoiceUsingTemplate(pdfBytes, fields, pdfDoc) {
+  const extracted = {};
+  console.log("in extract invoice using template");
+
+  for (const f of fields) {
+    const text = await extractTextByRect(pdfBytes, f.page_number, f, pdfDoc);
+    extracted[f.field_label] = text || "";
+  }
+
+  return extracted;
+}
+export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
+  console.log("In extract text by rect", rect);
+  // const pdf = await pdfjsLib.getDocument({
+  //   data: pdfBytes,
+  //   standardFontDataUrl: standardFontsPath,
+  // }).promise;
+  const page = await pdf.getPage(pageNum);
+  const content = await page.getTextContent();
+
+  const results = [];
+
+  content.items.forEach(item => {
+    const [, , , , x, y] = item.transform;
+    const height = item.height || 10;
+    const width = item.width || item.str.length * 5;
+
+    if (
+      x >= rect.left_pos &&
+      x <= rect.left_pos + rect.width &&
+      y >= rect.top_pos &&
+      y <= rect.top_pos + rect.height
+    ) {
+      results.push(item.str);
+    }
+  });
+
+  console.log(results, "extracted text items");
+
+  return results.join(" ").trim();
 }

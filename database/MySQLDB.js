@@ -67,6 +67,7 @@ class SQLManager {
       const result = await this.query(sql, flatValues);
       return result;
     } catch (error) {
+      console.log(error)
       throw error;
     }
   }
