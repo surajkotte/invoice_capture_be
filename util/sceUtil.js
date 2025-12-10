@@ -128,33 +128,100 @@ export async function extractInvoiceUsingTemplate(pdfBytes, fields, pdfDoc) {
 
   return extracted;
 }
-export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
-  console.log("In extract text by rect", rect);
-  // const pdf = await pdfjsLib.getDocument({
-  //   data: pdfBytes,
-  //   standardFontDataUrl: standardFontsPath,
-  // }).promise;
-  const page = await pdf.getPage(pageNum);
-  const content = await page.getTextContent();
+// export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
+//   console.log("In extract text by rect", rect);
+//   // const pdf = await pdfjsLib.getDocument({
+//   //   data: pdfBytes,
+//   //   standardFontDataUrl: standardFontsPath,
+//   // }).promise;
+//   const page = await pdf.getPage(pageNum);
+//   const content = await page.getTextContent();
 
+//   const results = [];
+
+//   content.items.forEach(item => {
+//     const [, , , , x, y] = item.transform;
+//     const height = item.height || 10;
+//     const width = item.width || item.str.length * 5;
+//     console.log("----------------")
+//     console.log(x, y, width, height, "item positions", item.str);
+//     console.log(rect.left_pos, rect.top_pos, rect.width, rect.height, "rect positions");
+//     console.log("----------------")
+//     if (
+//       x >= rect.left_pos &&
+//       x <= rect.left_pos + rect.width &&
+//       y >= rect.top_pos &&
+//       y <= rect.top_pos + rect.height
+//     ) {
+//       results.push(item.str);
+//     }
+//   });
+
+//   console.log(results, "extracted text items");
+
+//   return results.join(" ").trim();
+// }
+export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
+
+  const page = await pdf.getPage(pageNum);
+
+  // PDF viewport to compute real width/height
+  const viewport = page.getViewport({ scale: 1.0 });
+  const pageWidth = viewport.width;
+  const pageHeight = viewport.height;
+
+  // -------------------------------
+  // Convert NORMALIZED RECT → ABSOLUTE PDF COORDS
+  // Your React saved: top, left, width, height (normalized 0–1)
+  // PDF uses (0,0) at BOTTOM-LEFT, NOT top-left
+  // -------------------------------
+
+  const absLeft = rect.left_pos * pageWidth;
+  const absTopFromUI = rect.top_pos * pageHeight;
+
+  const absWidth = rect.width * pageWidth;
+  const absHeight = rect.height * pageHeight;
+
+  // Convert UI top-left → PDF bottom-left
+  const absBottom = pageHeight - absTopFromUI - absHeight;
+
+  const selectionBox = {
+    x1: absLeft,
+    x2: absLeft + absWidth,
+    y1: absBottom,
+    y2: absBottom + absHeight,
+  };
+
+  // -------------------------------
+  // Extract text from PDF
+  // -------------------------------
+  const content = await page.getTextContent();
   const results = [];
 
-  content.items.forEach(item => {
+  content.items.forEach((item) => {
     const [, , , , x, y] = item.transform;
-    const height = item.height || 10;
-    const width = item.width || item.str.length * 5;
 
-    if (
-      x >= rect.left_pos &&
-      x <= rect.left_pos + rect.width &&
-      y >= rect.top_pos &&
-      y <= rect.top_pos + rect.height
-    ) {
+    const itemWidth = item.width || 5 * item.str.length;
+    const itemHeight = item.height || 10;
+
+    const itemBox = {
+      x1: x,
+      x2: x + itemWidth,
+      y1: y,
+      y2: y + itemHeight,
+    };
+
+    // Check overlap of item with selection box
+    const overlaps =
+      itemBox.x2 >= selectionBox.x1 &&
+      itemBox.x1 <= selectionBox.x2 &&
+      itemBox.y2 >= selectionBox.y1 &&
+      itemBox.y1 <= selectionBox.y2;
+
+    if (overlaps) {
       results.push(item.str);
     }
   });
-
-  console.log(results, "extracted text items");
 
   return results.join(" ").trim();
 }

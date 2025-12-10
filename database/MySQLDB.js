@@ -48,7 +48,7 @@ class SQLManager {
         data = [data];
       }
       if (deleteExisting) {
-        console.log("in dele");
+        console.log("in dele "+table);
         if (data.length === 0) return null;
         this.delete(table);
       }
@@ -64,10 +64,16 @@ class SQLManager {
       .map((col) => `${col} = VALUES(${col})`)
       .join(", ")}
   `;
+  console.log(table+" in insert table");
+  console.log(sql+" in insert");
+  console.log(flatValues+" in insert values");
+
       const result = await this.query(sql, flatValues);
+      console.log(result+" insert result");
       return result;
     } catch (error) {
-      console.log(error)
+      console.log('in error')
+      console.log(error+' in insert'+table);
       throw error;
     }
   }

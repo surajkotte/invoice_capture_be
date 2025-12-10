@@ -516,6 +516,7 @@ export const SQLFile = {
       }
       console.log(ext)
       console.log(req.file.originalname)
+      let extractionResult;
       if (ext === ".pdf") {
         // const processedPages = await convertPdfToOptimizedBase64(pdfPath);
         // base64DataArray = processedPages.map((p) => ({
@@ -533,12 +534,18 @@ export const SQLFile = {
           [hash]
         );
         console.log(sceHash +"sce hash")
+     
         if(sceHash[0] && sceHash[0][0]){
           const selectionFields = await dbManager.query("SELECT field_key, field_label, page_number, top_pos,left_pos, width, height FROM template_fields WHERE template_id = ?", [sceHash[0][0].id]);  
           console.log(sceHash[0][0].id, "template id")
           console.log(selectionFields, "selection fields")
-          const extractionResult = await extractInvoiceUsingTemplate(pdfBytes, selectionFields[0], pdfDoc);
-          console.log(extractionResult, "extraction result");
+          try{
+           extractionResult = await extractInvoiceUsingTemplate(pdfBytes, selectionFields[0], pdfDoc);
+          }catch(err){
+            console.log(err, "error in extraction using template")  
+          }
+
+          
         }
 
       }
@@ -604,6 +611,11 @@ Follow these rules strictly:
       const extractedText = response.content[0].text || "";
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
       const jsonObject = jsonMatch ? JSON.parse(jsonMatch[1]) : {};
+      if(extractionResult){
+        Object.keys(extractionResult).forEach((key) => {  
+          jsonObject.header_fields[key] = extractionResult[key];
+        });
+      }
 
       res.json({
         messageType: "S",
@@ -628,7 +640,6 @@ Follow these rules strictly:
       const query = "SELECT * FROM users WHERE id = ?";
       const user = await dbManager.query(query, [tokenid]);
       const userName = user[0][0]?.username || "";
-      console.log(userName, "token");
       if (sceTemplate) {
         const sceHash = await dbManager.query(
           "SELECT * FROM invoice_templates WHERE layout_hash = ?",
@@ -656,7 +667,6 @@ Follow these rules strictly:
             ["id"],
             false
           );
-          console.log("Insert Result:", response[0] == true);
           if (true) {
             const fieldMappings = Object.entries(sceTemplate).map(
               ([fieldLabel, fieldValue], index) => ({
@@ -674,7 +684,7 @@ Follow these rules strictly:
             await dbManager.insert(
               "template_fields",
               fieldMappings,
-              ["id"],
+              ["template_id"],
               false
             );
           } else {
@@ -686,8 +696,6 @@ Follow these rules strictly:
         "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
         [token, domain, port]
       );
-      console.log(response, "response");
-      console.log(sceTemplate, layoutHash + "sce template and hash");
 
       if (response[0].length > 0) {
         const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
@@ -707,8 +715,6 @@ Follow these rules strictly:
           httpsAgent: agent,
           data: JSON.stringify(payload),
         });
-
-        console.log(postResponse);
         if (postResponse.status === 201) {
           const payloadStr = postResponse?.data?.d?.payload;
           let payload = {};

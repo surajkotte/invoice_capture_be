@@ -36,7 +36,7 @@ app.use("/files", express.static(path.join(__dirname, "uploads")));
   try {
     await dbManager.connect();
     console.log("Database connection successful. Starting server...");
-    app.listen(3000, () => {
+    app.listen(5000, () => {
       console.log("listening to server 3000");
     });
   } catch (error) {
