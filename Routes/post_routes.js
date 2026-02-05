@@ -102,10 +102,13 @@ post_router.post(
 
 post_router.post(
   "/upload",
-  (req, res, next) => {
+  upload.single("file"),
+    async (req, res, next) => {
+          const filename = req.file.filename;
+    const { hash } = await run(filename);
+    req.body.layoutHash = hash;
     next();
   },
-  upload.single("file"),
   connectionCheck,
   SQLFile.upload
 );
@@ -143,7 +146,10 @@ post_router.post(
   "/prompt",
   connectionCheck,
   upload.single("file"),
-  (req, res, next) => {
+  async (req, res, next) => {
+    const filename = req.file.filename;
+    const { hash } = await run(filename);
+    req.body.layoutHash = hash;
     next();
   },
   SQLFile.uploadPrompt
@@ -157,4 +163,10 @@ post_router.post(
   },
   SQLFile.promptData
 );
+post_router.post("/save/prompt",async (req,res,next)=>{
+  const { filename } = req.body;
+        const { hash } = await run(filename);
+      req.body.layoutHash = hash;
+      next();
+},SQLFile.savePromptData);
 export default post_router;

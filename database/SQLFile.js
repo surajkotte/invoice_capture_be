@@ -391,6 +391,8 @@ export const SQLFile = {
   async upload(req, res) {
     try {
       const file_path = req.file.path;
+      const { layoutHash } = req.body;
+      console.log("layout hash in upload:", layoutHash);
       console.log(req.file)
       const ext = path.extname(req.file.originalname).toLowerCase();
       let mediaType;
@@ -448,7 +450,16 @@ export const SQLFile = {
       // }
 
       let contentBlocks = []
-
+      let prompttext = ""
+      const promptresponse = await dbManager.query(
+        "SELECT * FROM prompt_data WHERE layout_hash = ?",
+        [layoutHash]
+      );
+      console.log(promptresponse, "prompt response");
+      if (promptresponse[0] && promptresponse[0][0]) {
+        prompttext = promptresponse[0][0]?.prompts || "";
+      }
+      console.log(prompttext, "prompt text");
       const response1 = await dbManager.query(
         "SELECT * FROM Header_Fields",
         []
@@ -546,6 +557,7 @@ Follow these rules strictly:
 - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
 - "Payment Terms" must be a 4-character alphanumeric value — not a description.
 - Extract data exactly as it appears in the document (except translations when needed).
+- ${prompttext}
 `,
               },
       )
@@ -818,6 +830,7 @@ const response = await anthropic.messages.create({
     try {
       const pdfPath = req.file.path;
       const prompt = req.body.prompt;
+      const { layoutHash } = req.body;
       const ext = path.extname(req.file.originalname).toLowerCase();
       let mediaType;
 
@@ -838,11 +851,23 @@ const response = await anthropic.messages.create({
         default:
           return res.status(400).json({ error: "Unsupported file type" });
       }
+      console.log(layoutHash, "layout hash in upload prompt");
+      const promptsdata = await dbManager.query(
+        "SELECT * FROM prompt_data WHERE layout_hash = ?",
+        [layoutHash]
+      );
+      console.log(promptsdata, "promptsdata");
+      let promptText = "";
+      if (promptsdata[0] && promptsdata[0][0]) {
+        promptText = promptsdata[0][0]?.prompts || "";
+      }
+      promptText += "\n" + prompt;
+      console.log(promptText, "final prompt text");
       const response1 = await dbManager.query(
-        "SELECT * FROM header_fields",
+        "SELECT * FROM Header_Fields",
         []
       );
-      const response2 = await dbManager.query("SELECT * FROM item_fields", []);
+      const response2 = await dbManager.query("SELECT * FROM Item_Fields", []);
       const Header_Fields =
         response1[0]?.map((info) => {
           return info?.field_label;
@@ -871,16 +896,26 @@ const response = await anthropic.messages.create({
               },
               {
                 type: "text",
-                text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.  
-Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.  
-Make sure that:  
-- The JSON structure is valid and properly formatted.  
-- Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.  
-- No additional fields or values are included that are not present in the document.  
-- Dont include currencies in amounts. Put currecny in currency field
-- Enter tax rate in and tax code intheir respective fields 
-- Extract all line items
-- ${prompt}
+                text: `Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
+Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
+
+Follow these rules strictly:
+- Extract **all** line items (even if partially readable).
+- The JSON structure must be valid and properly formatted.
+- If any text is not in English, translate it to English before inserting into JSON.
+- Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
+- Keep numeric values as pure numbers — do **not** include currency symbols or text.
+- ✅ Ensure tax fields are correctly extracted:
+  - "tax_rate" → numeric value (e.g., 18)
+  - "tax_code" → alphanumeric code (e.g., "V1")
+- Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+- The "header_fields" object must contain only header-level fields.
+- The "item_fields" array must contain all extracted line items.
+- No additional fields, notes, or metadata should be added.
+- Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
+- "Payment Terms" must be a 4-character alphanumeric value — not a description.
+- Extract data exactly as it appears in the document (except translations when needed).
+- ${promptText}
 `,
               },
             ],
@@ -1188,6 +1223,47 @@ ${prompt}
     } catch (error) {
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
+  },
+  async savePromptData(req, res) {
+    try {
+      const { filename, prompt, layoutHash } = req.body;
+      const  dbresponse = await dbManager.query(
+        "SELECT * FROM prompt_data WHERE layout_hash = ?",
+        [layoutHash]
+      );
+      if (dbresponse[0].length > 0) {
+        let existingPrompts = dbresponse[0][0].prompts; 
+        if (!Array.isArray(existingPrompts)) existingPrompts = [];
+        if (!existingPrompts.includes(prompt)) {
+        existingPrompts.push(prompt);
+         }
+    const response = await dbManager.update_data(
+        "prompt_data",
+        { prompts: JSON.stringify(existingPrompts) },
+        { layout_hash: layoutHash }
+    );
+    if (response) {
+        res.json({ messageType: "S", data: response });
+    }else {
+        throw new Error("Failed to update prompt data");
+    }
+  } else {
+    const response = await dbManager.insert_data(
+          "prompt_data",
+        {
+            layout_hash: layoutHash,
+            prompts: JSON.stringify([prompt]), // Notice the brackets [ ]
+        }
+    );
+      if (response) {
+          res.json({ messageType: "S", data: response });
+      }else {
+        throw new Error("Failed to insert prompt data");
+      }
+    }
+    }    catch (error) {
+      res.status(500).json({ messageType: "E", meessage: error.message });
+    } 
   },
 };
 

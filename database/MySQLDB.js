@@ -88,6 +88,22 @@ class SQLManager {
         throw error;
       }
     }
+    async update_data(table, data, where) {
+      try {
+        const setKeys = Object.keys(data);
+        const setClause = setKeys.map(key => `${key} = ?`).join(', ');
+        const whereKeys = Object.keys(where);
+        const whereClause = whereKeys.map(key => `${key} = ?`).join(' AND ');
+        const values = [...setKeys.map(key => data[key]), ...whereKeys.map(key => where[key])];
+        const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
+        const result = await this.query(sql, values);
+        return result;
+      }
+      catch (error) {
+        console.error(`Error updating ${table}:`, error);
+        throw error;
+      }
+    }
 }
 
 export default SQLManager;
