@@ -43,40 +43,51 @@ class SQLManager {
     }
   }
   async insert(table, data, keyCols = ["id"], deleteExisting = true) {
-    try {
-      if (!Array.isArray(data)) {
-        data = [data];
-      }
-      if (deleteExisting) {
-        console.log("in dele "+table);
-        if (data.length === 0) return null;
-        this.delete(table);
-      }
-      const columns = Object.keys(data[0]);
-      const placeholders = "(" + columns.map(() => "?").join(", ") + ")";
-      const allValues = data.map((row) => columns.map((col) => row[col]));
-      const flatValues = allValues.flat();
-      const updateCols = columns.filter((col) => !keyCols?.includes(col));
-      const sql = `
+      try {
+        if (!Array.isArray(data)) {
+          data = [data];
+        }
+        if (deleteExisting) {
+          if (data.length === 0) return null;
+          this.delete(table);
+        }
+        const columns = Object.keys(data[0]);
+        const placeholders = "(" + columns.map(() => "?").join(", ") + ")";
+        const allValues = data.map((row) => columns.map((col) => row[col]));
+        const flatValues = allValues.flat();
+        const updateCols = columns.filter((col) => !keyCols?.includes(col));
+        const sql = `
     INSERT INTO ${table} (${columns.join(", ")})
     VALUES ${allValues.map(() => placeholders).join(", ")}
     ON DUPLICATE KEY UPDATE ${updateCols
       .map((col) => `${col} = VALUES(${col})`)
       .join(", ")}
   `;
-  console.log(table+" in insert table");
-  console.log(sql+" in insert");
-  console.log(flatValues+" in insert values");
 
-      const result = await this.query(sql, flatValues);
-      console.log(result+" insert result");
-      return result;
-    } catch (error) {
-      console.log('in error')
-      console.log(error+' in insert'+table);
-      throw error;
+        const result = await this.query(sql, flatValues);
+        return result;
+      } catch (error) {
+        console.log('in error')
+        console.log(error + ' in insert' + table);
+        throw error;
+      }
     }
-  }
+    async insert_data(table, data) {
+      try {
+        const rows = Array.isArray(data) ? data : [data];
+        if (rows.length === 0) return null;
+        const columns = Object.keys(rows[0]);
+        const rowPlaceholders = `(${columns.map(() => '?').join(', ')})`;
+        const allPlaceholders = rows.map(() => rowPlaceholders).join(', ');
+        const flatValues = rows.flatMap(row => columns.map(col => row[col]));
+        const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${allPlaceholders}`;
+        const result = await this.query(sql, flatValues);
+        return result;
+      } catch (error) {
+        console.error(`Error inserting into ${table}:`, error);
+        throw error;
+      }
+    }
 }
 
 export default SQLManager;

@@ -122,106 +122,140 @@ export async function extractInvoiceUsingTemplate(pdfBytes, fields, pdfDoc) {
   console.log("in extract invoice using template");
 
   for (const f of fields) {
-    const text = await extractTextByRect(pdfBytes, f.page_number, f, pdfDoc);
+        const rects = {
+      left: row.left_pos,
+      bottom: row.bottom_pos,
+      width: row.width,
+      height: row.height,
+    };
+    const text = await extractTextByRect(pdfDoc, f.page_number, rects);
     extracted[f.field_label] = text || "";
   }
-
+console.log("Extracted Fields:", extracted);
   return extracted;
 }
-// export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
-//   console.log("In extract text by rect", rect);
-//   // const pdf = await pdfjsLib.getDocument({
-//   //   data: pdfBytes,
-//   //   standardFontDataUrl: standardFontsPath,
-//   // }).promise;
-//   const page = await pdf.getPage(pageNum);
-//   const content = await page.getTextContent();
+function overlapRatio(a, b) {
+  const xOverlap = Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1));
+  const yOverlap = Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
+  const overlap = xOverlap * yOverlap;
 
+  const areaA = (a.x2 - a.x1) * (a.y2 - a.y1);
+  return areaA === 0 ? 0 : overlap / areaA;
+}
+
+// export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
+//   const page = await pdf.getPage(pageNum);
+  
+//   // 1. Get viewport at scale 1.0 (Native PDF units)
+//   const viewport = page.getViewport({ scale: 1.0 });
+//   const pageWidth = viewport.width;
+//   const pageHeight = viewport.height;
+
+//   // 2. Handle property name mismatch safely
+//   // UI sends: { left, top, ... }
+//   // Backend might expect: { left_pos, top_pos, ... }
+//   const rLeft = rect.left ?? rect.left_pos ?? 0;
+//   const rTop = rect.top ?? rect.top_pos ?? 0;
+//   const rWidth = rect.width ?? 0;
+//   const rHeight = rect.height ?? 0;
+
+//   // 3. Convert NORMALIZED (0-1) -> PDF ABSOLUTE COORDINATES
+//   // PDF Origin is Bottom-Left. UI Origin is Top-Left.
+//   const selectX = rLeft * pageWidth;
+//   const selectWidth = rWidth * pageWidth;
+//   const selectHeight = rHeight * pageHeight;
+  
+//   // Flip Y-axis: (Page Height) - (Top Offset) - (Height of Box)
+//   const selectBottom = pageHeight - (rTop * pageHeight) - selectHeight;
+//   const selectTop = selectBottom + selectHeight;
+
+//   const selectionBox = {
+//     xMin: selectX,
+//     xMax: selectX + selectWidth,
+//     yMin: selectBottom,
+//     yMax: selectTop
+//   };
+
+//   // 4. Extract Text
+//   const content = await page.getTextContent();
 //   const results = [];
 
-//   content.items.forEach(item => {
-//     const [, , , , x, y] = item.transform;
-//     const height = item.height || 10;
-//     const width = item.width || item.str.length * 5;
-//     console.log("----------------")
-//     console.log(x, y, width, height, "item positions", item.str);
-//     console.log(rect.left_pos, rect.top_pos, rect.width, rect.height, "rect positions");
-//     console.log("----------------")
-//     if (
-//       x >= rect.left_pos &&
-//       x <= rect.left_pos + rect.width &&
-//       y >= rect.top_pos &&
-//       y <= rect.top_pos + rect.height
-//     ) {
-//       results.push(item.str);
+//   content.items.forEach((item) => {
+//     // Transform matrix: [scaleX, skewY, skewX, scaleY, x, y]
+//     const tx = item.transform;
+//     const x = tx[4];
+//     const y = tx[5];
+    
+//     // Accurate Dimensions
+//     // Width: usually provided by PDF.js, or estimate fallback
+//     const itemWidth = item.width || (item.str.length * (tx[0] * 0.5)); 
+//     // Height: Use the Y-scale from transform matrix (index 3)
+//     const itemHeight = Math.abs(tx[3]); 
+
+//     // Calculate the CENTER point of the text item
+//     const centerX = x + (itemWidth / 2);
+//     const centerY = y + (itemHeight / 2);
+//     // 5. Check if CENTER of text is INSIDE the selection box
+//     // This is much safer than "edges overlap" which grabs neighbors
+//     const isInside = 
+//       centerX >= selectionBox.xMin &&
+//       centerX <= selectionBox.xMax &&
+//       centerY >= selectionBox.yMin &&
+//       centerY <= selectionBox.yMax;
+
+//     if (isInside) {
+//       results.push({ str: item.str, x: x, y: y }); // Store x,y to sort later if needed
 //     }
 //   });
 
-//   console.log(results, "extracted text items");
+//   // Optional: Sort by Y (top to bottom) then X (left to right) for reading order
+//   // Note: In PDF coords, higher Y is higher up the page.
+//   results.sort((a, b) => {
+//     if (Math.abs(a.y - b.y) > 5) return b.y - a.y; // Different lines
+//     return a.x - b.x; // Same line, sort left to right
+//   });
 
-//   return results.join(" ").trim();
+//   const finalStr = results.map(r => r.str).join(" ").trim();
+//   console.log("Extracted:", finalStr);
+//   return finalStr;
 // }
-export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
+export async function extractTextByRect(pdfDoc, pageNum, rect) {
+  const page = await pdfDoc.getPage(pageNum);
+  const viewport = page.getViewport({ scale: 1 });
 
-  const page = await pdf.getPage(pageNum);
-
-  // PDF viewport to compute real width/height
-  const viewport = page.getViewport({ scale: 1.0 });
-  const pageWidth = viewport.width;
-  const pageHeight = viewport.height;
-
-  // -------------------------------
-  // Convert NORMALIZED RECT → ABSOLUTE PDF COORDS
-  // Your React saved: top, left, width, height (normalized 0–1)
-  // PDF uses (0,0) at BOTTOM-LEFT, NOT top-left
-  // -------------------------------
-
-  const absLeft = rect.left_pos * pageWidth;
-  const absTopFromUI = rect.top_pos * pageHeight;
-
-  const absWidth = rect.width * pageWidth;
-  const absHeight = rect.height * pageHeight;
-
-  // Convert UI top-left → PDF bottom-left
-  const absBottom = pageHeight - absTopFromUI - absHeight;
-
-  const selectionBox = {
-    x1: absLeft,
-    x2: absLeft + absWidth,
-    y1: absBottom,
-    y2: absBottom + absHeight,
+  // Convert normalized → absolute PDF coords
+  const sel = {
+    xMin: rect.left * viewport.width,
+    xMax: (rect.left + rect.width) * viewport.width,
+    yMin: rect.bottom * viewport.height,
+    yMax: (rect.bottom + rect.height) * viewport.height,
   };
 
-  // -------------------------------
-  // Extract text from PDF
-  // -------------------------------
   const content = await page.getTextContent();
-  const results = [];
+  const hits = [];
 
-  content.items.forEach((item) => {
-    const [, , , , x, y] = item.transform;
+  for (const item of content.items) {
+    const [ , , , , x, y ] = item.transform;
+    const w = item.width || item.str.length * 5;
+    const h = Math.abs(item.transform[3]) || 10;
 
-    const itemWidth = item.width || 5 * item.str.length;
-    const itemHeight = item.height || 10;
-
-    const itemBox = {
+    const box = {
       x1: x,
-      x2: x + itemWidth,
+      x2: x + w,
       y1: y,
-      y2: y + itemHeight,
+      y2: y + h,
     };
 
-    // Check overlap of item with selection box
-    const overlaps =
-      itemBox.x2 >= selectionBox.x1 &&
-      itemBox.x1 <= selectionBox.x2 &&
-      itemBox.y2 >= selectionBox.y1 &&
-      itemBox.y1 <= selectionBox.y2;
-
-    if (overlaps) {
-      results.push(item.str);
+    if (overlapRatio(box, sel) > 0.6) {
+      hits.push({ str: item.str, x, y });
     }
+  }
+
+  // Reading order
+  hits.sort((a, b) => {
+    if (Math.abs(a.y - b.y) > 4) return b.y - a.y;
+    return a.x - b.x;
   });
 
-  return results.join(" ").trim();
+  return hits.map(h => h.str).join(" ").trim();
 }

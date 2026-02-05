@@ -389,109 +389,8 @@ export const SQLFile = {
     }
   },
   async upload(req, res) {
-    // try {
-    //   const pdfPath = req.file.path;
-    //   const ext = path.extname(req.file.originalname).toLowerCase();
-    //   let mediaType;
-    //   let base64Data;
-
-    //   switch (ext) {
-    //     case ".pdf":
-    //       mediaType = "application/pdf";
-    //       break;
-    //     case ".xml":
-    //       mediaType = "application/xml";
-    //       break;
-    //     case ".txt":
-    //       mediaType = "text/plain";
-    //       break;
-    //     case ".docx":
-    //       mediaType =
-    //         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    //       break;
-    //     default:
-    //       return res.status(400).json({ error: "Unsupported file type" });
-    //   }
-    //   if (ext === ".pdf") {
-    //     const processedFile = await convertPdfToOptimizedBase64(pdfPath);
-    //     base64Data = processedFile.base64Data;
-    //     mediaType = processedFile.mediaType; // Now it's image/jpeg
-    //   }
-    //   const response1 = await dbManager.query(
-    //     "SELECT * FROM header_fields",
-    //     []
-    //   );
-    //   const response2 = await dbManager.query("SELECT * FROM item_fields", []);
-    //   const Header_Fields =
-    //     response1[0]?.map((info) => {
-    //       return info?.field_label;
-    //     }) || [];
-    //   const Item_Fields =
-    //     response2[0]?.map((info) => {
-    //       return info?.field_label;
-    //     }) || [];
-    //   const fileBuffer = fs.readFileSync(pdfPath);
-    //   //base64Data = fileBuffer.toString("base64");
-    //   console.log(mediaType);
-    //   const response = await anthropic.messages.create({
-    //     model: "claude-sonnet-4-20250514",
-    //     max_tokens: 20000,
-    //     temperature: 1,
-    //     messages: [
-    //       {
-    //         role: "user",
-    //         content: [
-    //           {
-    //             type: "image",
-    //             source: {
-    //               type: "base64",
-    //               media_type: mediaType,
-    //               data: base64Data,
-    //             },
-    //           },
-    //           {
-    //             type: "text",
-    //             text: `Place all header-related fields inside the ${Header_Fields} object, using the exact field names defined in header_fields.
-    //             Place all item-related fields inside the ${Item_Fields} array, using the exact field names defined in item_fields.
-    //             Follow these rules strictly:
-    //             - Extract **all** line items (even if they are partially readable).
-    //             - The JSON structure is valid and properly formatted.
-    //             - If any text is not in English, translate it to English before inserting into JSON.
-    //             - Put the currency code/symbol (e.g., "USD", "EUR", "INR") only in the "currency" field.
-    //             - Keep numeric values as pure numbers — do **not** include currency symbols.
-    //             - ✅ Ensure tax fields are extracted correctly:
-    //                 - "tax_rate" → numeric value (e.g., 18)
-    //                 - "tax_code" → alphanumeric code (e.g., "V1")
-    //             - Field names match exactly with those in ${Header_Fields} and ${Item_Fields} with no underscore and exact field names.
-    //             - No additional fields or values are included that are not present in the document.
-    //             - Extract data as it is.
-    //             - Do not add any extra fields, notes, or metadata.
-    //             - Do not invent or infer values not found in the document. If a field is missing, set it as an empty string ("").
-    //             - Payment terms is a 4 digit alpha numeric value. Its not a description
-    //             `,
-    //           },
-    //         ],
-    //       },
-    //     ],
-    //   });
-    //   const extractedText = response.content[0].text;
-
-    //   const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
-    //   let jsonObject = JSON.parse(jsonMatch[1]);
-    //   res.json({
-    //     messageType: "S",
-    //     data: jsonObject,
-    //     fileName: req.file.filename,
-    //     base64File: base64Data,
-    //     fileType: ext,
-    //     fileSize: req.file.size,
-    //   });
-    // } catch (error) {
-    //   console.error("Error uploading document:", error);
-    //   res.status(500).json({ error: "Failed to upload document" });
-    // }
     try {
-      const pdfPath = req.file.path;
+      const file_path = req.file.path;
       console.log(req.file)
       const ext = path.extname(req.file.originalname).toLowerCase();
       let mediaType;
@@ -514,41 +413,41 @@ export const SQLFile = {
         default:
           return res.status(400).json({ error: "Unsupported file type" });
       }
-      console.log(ext)
-      console.log(req.file.originalname)
       let extractionResult;
-      if (ext === ".pdf") {
-        // const processedPages = await convertPdfToOptimizedBase64(pdfPath);
-        // base64DataArray = processedPages.map((p) => ({
-        //   type: "image",
-        //   source: {
-        //     type: "base64",
-        //     media_type: p.mediaType,
-        //     data: p.base64Data,
-        //   },
-        // }));
-        let {hash, pdfBytes, pdfDoc} = await run(req.file.filename);
-        console.log(hash)
-           const sceHash = await dbManager.query(
-          "SELECT id FROM invoice_templates WHERE layout_hash = ?",
-          [hash]
-        );
-        console.log(sceHash +"sce hash")
+      // if (ext === ".pdf") {
+      //   // const processedPages = await convertPdfToOptimizedBase64(pdfPath);
+      //   // base64DataArray = processedPages.map((p) => ({
+      //   //   type: "image",
+      //   //   source: {
+      //   //     type: "base64",
+      //   //     media_type: p.mediaType,
+      //   //     data: p.base64Data,
+      //   //   },
+      //   // }));
+      //   let {hash, pdfBytes, pdfDoc} = await run(req.file.filename);
+      //   console.log(hash)
+      //      const sceHash = await dbManager.query(
+      //     "SELECT id FROM invoice_templates WHERE layout_hash = ?",
+      //     [hash]
+      //   );
+      //   console.log(sceHash +"sce hash")
      
-        if(sceHash[0] && sceHash[0][0]){
-          const selectionFields = await dbManager.query("SELECT field_key, field_label, page_number, top_pos,left_pos, width, height FROM template_fields WHERE template_id = ?", [sceHash[0][0].id]);  
-          console.log(sceHash[0][0].id, "template id")
-          console.log(selectionFields, "selection fields")
-          try{
-           extractionResult = await extractInvoiceUsingTemplate(pdfBytes, selectionFields[0], pdfDoc);
-          }catch(err){
-            console.log(err, "error in extraction using template")  
-          }
+      //   if(sceHash[0] && sceHash[0][0]){
+      //     const selectionFields = await dbManager.query("SELECT field_key, field_label, page_number, top_pos,left_pos, width, height FROM template_fields WHERE template_id = ?", [sceHash[0][0].id]);  
+      //     console.log(sceHash[0][0].id, "template id")
+      //     console.log(selectionFields, "selection fields")
+      //     try{
+      //      extractionResult = await extractInvoiceUsingTemplate(pdfBytes, selectionFields[0], pdfDoc);
+      //     }catch(err){
+      //       console.log(err, "error in extraction using template")  
+      //     }
 
           
-        }
+      //   }
 
-      }
+      // }
+
+      let contentBlocks = []
 
       const response1 = await dbManager.query(
         "SELECT * FROM Header_Fields",
@@ -560,26 +459,72 @@ export const SQLFile = {
         response1[0]?.map((info) => info?.field_label) || [];
       const Item_Fields = response2[0]?.map((info) => info?.field_label) || [];
       console.log("Sending", base64DataArray.length, "pages to Claude...");
-      const fileBuffer = fs.readFileSync(pdfPath);
+      const fileBuffer = fs.readFileSync(file_path);
+      // const base64Data = fileBuffer.toString("base64");
+      let rawText = "";
+    if( ext === ".xml" || ext === ".txt"){
+       rawText = fileBuffer.toString("utf-8");
+      contentBlocks.push({ type: "text", text: `Here is the source ${ext.toUpperCase()} content:\n\n${rawText}` });
+    }else{
+      //for pdf files
       const base64Data = fileBuffer.toString("base64");
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 20000,
-        temperature: 1,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data: base64Data,
-                },
-              },
-              // ...base64DataArray,
-              {
+      contentBlocks.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: mediaType,
+          data: base64Data,
+        },
+    });
+    }
+//       const response = await anthropic.messages.create({
+//         model: "claude-sonnet-4-20250514",
+//         max_tokens: 20000,
+//         temperature: 1,
+//         messages: [
+//           {
+//             role: "user",
+//             content: [
+//               {
+//                 type: "document",
+//                 source: {
+//                   type: "base64",
+//                   media_type: mediaType,
+//                   data: base64Data,
+//                 },
+//               },
+//               // ...base64DataArray,
+//               {
+//                 type: "text",
+//                 text: `
+// Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
+// Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
+
+// Follow these rules strictly:
+// - Extract **all** line items (even if partially readable).
+// - The JSON structure must be valid and properly formatted.
+// - If any text is not in English, translate it to English before inserting into JSON.
+// - Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
+// - Keep numeric values as pure numbers — do **not** include currency symbols or text.
+// - ✅ Ensure tax fields are correctly extracted:
+//   - "tax_rate" → numeric value (e.g., 18)
+//   - "tax_code" → alphanumeric code (e.g., "V1")
+// - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+// - The "header_fields" object must contain only header-level fields.
+// - The "item_fields" array must contain all extracted line items.
+// - No additional fields, notes, or metadata should be added.
+// - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
+// - "Payment Terms" must be a 4-character alphanumeric value — not a description.
+// - Extract data exactly as it appears in the document (except translations when needed).
+// `,
+//               },
+//             ],
+//           },
+//         ],
+//       });
+
+      contentBlocks.push(
+                      {
                 type: "text",
                 text: `
 Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
@@ -603,25 +548,28 @@ Follow these rules strictly:
 - Extract data exactly as it appears in the document (except translations when needed).
 `,
               },
-            ],
-          },
-        ],
-      });
-
+      )
+const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 20000,
+    temperature: 0,
+    messages: [{ role: "user", content: contentBlocks }],
+  });
       const extractedText = response.content[0].text || "";
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
       const jsonObject = jsonMatch ? JSON.parse(jsonMatch[1]) : {};
-      if(extractionResult){
-        Object.keys(extractionResult).forEach((key) => {  
-          jsonObject.header_fields[key] = extractionResult[key];
-        });
-      }
+      // if(extractionResult){
+      //   Object.keys(extractionResult).forEach((key) => {  
+      //     jsonObject.header_fields[key] = extractionResult[key];
+      //   });
+      // }
 
       res.json({
         messageType: "S",
         data: jsonObject,
         fileName: req.file.filename,
-        base64Files: base64Data,
+        text_data: rawText,
+        base64Files: contentBlocks[0]?.source?.data,
         fileType: ext,
         fileSize: req.file.size,
       });
@@ -640,7 +588,8 @@ Follow these rules strictly:
       const query = "SELECT * FROM users WHERE id = ?";
       const user = await dbManager.query(query, [tokenid]);
       const userName = user[0][0]?.username || "";
-      if (sceTemplate) {
+      if (sceTemplate && false) {
+        console.log("in sce template"+ sceTemplate);
         const sceHash = await dbManager.query(
           "SELECT * FROM invoice_templates WHERE layout_hash = ?",
           [layoutHash]
@@ -652,6 +601,32 @@ Follow these rules strictly:
               "invoice_templates",
               { layout_hash: layoutHash },
               { template_name: sceTemplate }
+            );
+          }else{
+            console.log("Template already exists with the same layout hash.");
+            const template_fields = await dbManager.query("SELECT * FROM template_fields WHERE template_id = ?", [sceHash[0][0]?.id]);
+            const last_inedx = template_fields[0]?.length || 0;
+            const fieldMappings = Object.entries(sceTemplate).map(
+              ([fieldLabel, fieldValue], index) => {
+                console.log(fieldLabel, "field label");
+                console.log(fieldValue, "field value");
+                return {
+                id: (template_fields[0]?.find(f => f.field_label === fieldLabel)?.id) || last_inedx + index + 1,
+                template_id: sceHash[0][0]?.id,
+                page_number: fieldValue.page,
+                bottom_pos: fieldValue.rect[0].bottom_pos,
+                left_pos: fieldValue.rect[0].left_pos,
+                width: fieldValue.rect[0].width,
+                height: fieldValue.rect[0].height,
+                field_label: fieldLabel,
+                created_at: new Date(),
+              };
+            });
+            await dbManager.insert(
+              "template_fields",
+              fieldMappings,
+              ["template_id"],
+              false
             );
           }
         } else {
@@ -669,18 +644,19 @@ Follow these rules strictly:
           );
           if (true) {
             const fieldMappings = Object.entries(sceTemplate).map(
-              ([fieldLabel, fieldValue], index) => ({
+                ([fieldLabel, fieldValue], index) =>( {
+          
                 id: index+1,
                 template_id: new_id,
                 page_number: fieldValue.page,
-                top_pos: fieldValue.rect.top,
-                left_pos: fieldValue.rect.left,
-                width: fieldValue.rect.width,
-                height: fieldValue.rect.height,
+                bottom_pos: fieldValue.rect[0].bottom_pos,
+                left_pos: fieldValue.rect[0].left_pos,
+                width: fieldValue.rect[0].width,
+                height: fieldValue.rect[0].height,
                 field_label: fieldLabel,
                 created_at: new Date(),
-              })
-            );
+              }));
+            
             await dbManager.insert(
               "template_fields",
               fieldMappings,
