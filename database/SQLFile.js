@@ -14,6 +14,7 @@ import sharp from "sharp";
 import { Poppler } from "node-poppler";
 import FormData from "form-data";
 import { extractInvoiceUsingTemplate, extractLayoutSignature, run } from "../util/sceUtil.js";
+import { response } from "express";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -32,7 +33,7 @@ export const SQLFile = {
       created_at: new Date(),
     };
     try {
-      const response = await dbManager.insert(table, user_Info);
+      const response = await dbManager.insert(table, user_Info,["id"], false);
       if (response) {
         if (user_Info?.id) {
           const token = JWT.sign(
@@ -62,7 +63,7 @@ export const SQLFile = {
         [""],
         delFlag === "X" ? true : false
       );
-      if (response) {
+      if (response[0]) {
         res.json({ messageType: "S", data: response });
       } else {
         throw new Error("Save Failed");
@@ -271,6 +272,26 @@ export const SQLFile = {
       });
     } catch (error) {
       return res.json({ messageType: "E", message: error?.message });
+    }
+  },
+  async delete_systemconfig(req,res){
+    try{
+      const { id } = req.body
+      const response = await dbManager.query("select * from system_config where id = ?", [id])
+      console.log("in delete system config", response)
+      if(response[0][0]){
+        const response1 = await dbManager.delete('system_config',{'id':id})
+        console.log("in delete system config response1", response1)
+        if(response1 && response1[0]){
+          return res.status(200).json({messageType:'S', data: response1[0]})
+        }else{
+          throw new Error("No data found with")
+        }
+      }else{
+        throw new Error("No data found with")
+      }
+    }catch(error){
+        return res.status(500).json({ messageType: "E", message: error.message });
     }
   },
   async check_connection(req, res) {
@@ -545,18 +566,22 @@ Follow these rules strictly:
 - Extract **all** line items (even if partially readable).
 - The JSON structure must be valid and properly formatted.
 - If any text is not in English, translate it to English before inserting into JSON.
-- Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
 - Keep numeric values as pure numbers — do **not** include currency symbols or text.
-- ✅ Ensure tax fields are correctly extracted:
+- Ensure tax fields are correctly extracted:
   - "tax_rate" → numeric value (e.g., 18)
   - "tax_code" → alphanumeric code (e.g., "V1")
+- Header field gross amount and Item level gross amounts are not same. Header gross amount is generally the sum of all line item gross amounts plus/minus any additional charges/discounts/taxes. So, always ensure to extract the exact gross amount as shown in the Header for the Header gross amount field, and the exact gross amount for each line item as shown in the document for the Item level gross amounts.
 - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+- Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "Currency" fields of both header and item fields.
+- If theres a currency Symbol in the document, make sure to extract the currency code(ISO) and put it in the "Currency" field. For example, if the document shows "$100", extract "USD" and put it in the "Currency" field, while keeping the numeric value as "100" in the relevant amount field.
+- In case currency not detected in Header but in the line items then fill currency from line item to Header
 - The "header_fields" object must contain only header-level fields.
 - The "item_fields" array must contain all extracted line items.
 - No additional fields, notes, or metadata should be added.
 - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
 - "Payment Terms" must be a 4-character alphanumeric value — not a description.
 - Extract data exactly as it appears in the document (except translations when needed).
+- Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 - ${prompttext}
 `,
               },
@@ -684,7 +709,27 @@ const response = await anthropic.messages.create({
         "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
         [token, domain, port]
       );
+      const headerfields = await dbManager.query( "SELECT * FROM Header_Fields where field_type = ?", ["Date"]);
+      headerfields[0].forEach((field) => {
+        const fieldKey = field.Field_name;
+        if (data.headerData && data.headerData[fieldKey]) {
+            const fieldValue = data.headerData[fieldKey];
+            console.log("field value before date formatting:", fieldValue);
+const parts = fieldValue.split('/');
+const date = new Date(parts[2], parts[1] - 1, parts[0]);
 
+  console.log("parsed date:", date);
+
+if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  
+  const formattedDate = `${yyyy}${mm}${dd}`;
+  data.headerData[fieldKey] = formattedDate;
+}
+          }
+        });
       if (response[0].length > 0) {
         const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
         const payload = {
@@ -703,6 +748,7 @@ const response = await anthropic.messages.create({
           httpsAgent: agent,
           data: JSON.stringify(payload),
         });
+        console.log("Post response status:", postResponse.status);
         if (postResponse.status === 201) {
           const payloadStr = postResponse?.data?.d?.payload;
           let payload = {};
@@ -739,6 +785,7 @@ const response = await anthropic.messages.create({
             throw new Error("Failed to submit data");
           }
         } else {
+          console.log("Failed to submit data:", postResponse.status, postResponse.data);
           throw new Error("Failed to submit data");
         }
       } else {
@@ -862,6 +909,7 @@ const response = await anthropic.messages.create({
         promptText = promptsdata[0][0]?.prompts || "";
       }
       promptText += "\n" + prompt;
+      console.log(prompt, "prompt from request");
       console.log(promptText, "final prompt text");
       const response1 = await dbManager.query(
         "SELECT * FROM Header_Fields",
@@ -900,6 +948,7 @@ const response = await anthropic.messages.create({
 Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
 
 Follow these rules strictly:
+- ${promptText}
 - Extract **all** line items (even if partially readable).
 - The JSON structure must be valid and properly formatted.
 - If any text is not in English, translate it to English before inserting into JSON.
@@ -915,7 +964,6 @@ Follow these rules strictly:
 - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
 - "Payment Terms" must be a 4-character alphanumeric value — not a description.
 - Extract data exactly as it appears in the document (except translations when needed).
-- ${promptText}
 `,
               },
             ],

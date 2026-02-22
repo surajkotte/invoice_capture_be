@@ -1,23 +1,34 @@
 import express from "express";
-import { SQLFile } from "../database/SQLFile.js";
-import { v4 as uuidv4 } from "uuid";
+import {
+  SQLFile
+} from "../database/SQLFile.js";
+import {
+  v4 as uuidv4
+} from "uuid";
 import {
   connectionCheck,
   system_check,
 } from "../middleware/connectionCheck.js";
 import multer from "multer";
-import { run } from "../util/sceUtil.js";
+import {
+  run
+} from "../util/sceUtil.js";
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, "uploads"),
   filename: (_, file, cb) => cb(null, Date.now() + "-" + file.originalname),
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage
+});
 const post_router = express.Router();
 
 post_router.post(
   "/admin/Fields",
   (req, res, next) => {
-    const { Type, Fields } = req.body;
+    const {
+      Type,
+      Fields
+    } = req.body;
     if (Type === "Header") {
       req.body.table = "Header_Fields";
     } else {
@@ -44,7 +55,11 @@ post_router.post(
     req.body.table = "document_type";
     const mimetypes = req.body.documents.toString();
     const size = req.body.size;
-    const data = { mimetypes, size, id: uuidv4() };
+    const data = {
+      mimetypes,
+      size,
+      id: uuidv4()
+    };
     req.body.data = data;
     req.body.delFlag = "X";
     next();
@@ -74,8 +89,14 @@ post_router.post(
   "/admin/system",
   connectionCheck,
   (req, res, next) => {
-    const { system_name, system_port, system_domain, id, is_default } =
-      req.body;
+    const {
+      system_name,
+      system_port,
+      system_domain,
+      id,
+      is_default
+    } =
+    req.body;
     let new_id = id;
     if (!id || id == null || id?.includes("new")) {
       new_id = uuidv4();
@@ -103,14 +124,16 @@ post_router.post(
 post_router.post(
   "/upload",
   upload.single("file"),
-    async (req, res, next) => {
-          const filename = req.file.filename;
-    const { hash } = await run(filename);
-    req.body.layoutHash = hash;
-    next();
-  },
-  connectionCheck,
-  SQLFile.upload
+  async (req, res, next) => {
+      const filename = req.file.filename;
+      const {
+        hash
+      } = await run(filename);
+      req.body.layoutHash = hash;
+      next();
+    },
+    connectionCheck,
+    SQLFile.upload
 );
 
 post_router.post(
@@ -118,23 +141,30 @@ post_router.post(
   connectionCheck,
   system_check,
   async (req, res, next) => {
-    const { data, sceTemplate } = req.body;
-    if (sceTemplate) {
-      const { hash } = await run(data?.fileName);
-      req.body.layoutHash = hash;
-      next();
-    } else {
-      next();
-    }
-  },
-  SQLFile.submit
+      const {
+        data,
+        sceTemplate
+      } = req.body;
+      if (sceTemplate) {
+        const {
+          hash
+        } = await run(data?.fileName);
+        req.body.layoutHash = hash;
+        next();
+      } else {
+        next();
+      }
+    },
+    SQLFile.submit
 );
 
 post_router.post(
   "/logout",
   connectionCheck,
   (req, res, next) => {
-    req.body.where = { session_id: req.cookies.token };
+    req.body.where = {
+      session_id: req.cookies.token
+    };
     req.body.table = "token_table";
     res.clearCookie("token");
     next();
@@ -147,12 +177,14 @@ post_router.post(
   connectionCheck,
   upload.single("file"),
   async (req, res, next) => {
-    const filename = req.file.filename;
-    const { hash } = await run(filename);
-    req.body.layoutHash = hash;
-    next();
-  },
-  SQLFile.uploadPrompt
+      const filename = req.file.filename;
+      const {
+        hash
+      } = await run(filename);
+      req.body.layoutHash = hash;
+      next();
+    },
+    SQLFile.uploadPrompt
 );
 
 post_router.post(
@@ -163,10 +195,20 @@ post_router.post(
   },
   SQLFile.promptData
 );
-post_router.post("/save/prompt",async (req,res,next)=>{
-  const { filename } = req.body;
-        const { hash } = await run(filename);
-      req.body.layoutHash = hash;
-      next();
-},SQLFile.savePromptData);
+post_router.post("/save/prompt", async (req, res, next) => {
+  const {
+    filename
+  } = req.body;
+  const {
+    hash
+  } = await run(filename);
+  req.body.layoutHash = hash;
+  next();
+}, SQLFile.savePromptData);
+post_router.post("/admin/system/delete", 
+          async (req, res, next) => {
+            next()
+          }, 
+    SQLFile.delete_systemconfig
+)
 export default post_router;
