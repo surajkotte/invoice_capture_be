@@ -126,6 +126,7 @@ post_router.post(
   upload.single("file"),
   async (req, res, next) => {
       const filename = req.file.filename;
+      
       const {
         hash
       } = await run(filename);
@@ -175,9 +176,10 @@ post_router.post(
 post_router.post(
   "/prompt",
   connectionCheck,
-  upload.single("file"),
   async (req, res, next) => {
-      const filename = req.file.filename;
+      console.log("in prompt")
+      console.log(req)
+      const filename = req.body.filename;
       const {
         hash
       } = await run(filename);

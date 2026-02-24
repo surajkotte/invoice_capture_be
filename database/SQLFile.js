@@ -11,10 +11,9 @@ import { fileURLToPath } from "url";
 import Anthropic from "@anthropic-ai/sdk";
 import normalizeResponseData from "../utils/NormalizeData.js";
 import sharp from "sharp";
-import { Poppler } from "node-poppler";
 import FormData from "form-data";
+import logLLMUsage from "../utils/UpdateLogs.js";
 import { extractInvoiceUsingTemplate, extractLayoutSignature, run } from "../util/sceUtil.js";
-import { response } from "express";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -586,12 +585,19 @@ Follow these rules strictly:
 `,
               },
       )
+      const startTime = Date.now();
 const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 20000,
     temperature: 0,
     messages: [{ role: "user", content: contentBlocks }],
   });
+      const processingTimeMs = Date.now() - startTime;
+      const inputTokens = response.usage?.input_tokens || 0;
+      const outputTokens = response.usage?.output_tokens || 0;
+      const inputCost = (inputTokens / 1_000_000) * 3.00;
+      const outputCost = (outputTokens / 1_000_000) * 15.00;
+      const totalCost = inputCost + outputCost;
       const extractedText = response.content[0].text || "";
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
       const jsonObject = jsonMatch ? JSON.parse(jsonMatch[1]) : {};
@@ -600,7 +606,17 @@ const response = await anthropic.messages.create({
       //     jsonObject.header_fields[key] = extractionResult[key];
       //   });
       // }
-
+      const session_doc_id = uuidv4()
+      logLLMUsage(dbManager, {
+        response,
+        model:"claude-sonnet-4-20250514",
+        processingTimeMs:processingTimeMs,
+        fileType:ext,
+        fileName:req.file.filename,
+        userName:"ExtractionSystem",
+        channel:"extraction",
+        sessionDocId:session_doc_id
+      })
       res.json({
         messageType: "S",
         data: jsonObject,
@@ -609,6 +625,15 @@ const response = await anthropic.messages.create({
         base64Files: contentBlocks[0]?.source?.data,
         fileType: ext,
         fileSize: req.file.size,
+        log_data:{
+          id:uuidv4(),
+          processingTimeMs,
+          inputTokens,
+          outputTokens,
+          model:"claude-sonnet-4-20250514",
+          totalCost,
+          session_doc_id
+        }
       });
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -780,6 +805,27 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
             false
           );
           if (db_response) {
+          const log_response_data =  {
+            id:data?.log_data?.id,
+            document_id: regid,
+            model_name: data?.log_data?.model,
+            output_tokens: data?.log_data?.outputTokens,
+            input_tokens: data?.log_data?.inputTokens,
+            processing_time_ms: data?.log_data?.processingTimeMs,
+            total_cost: data?.log_data?.totalCost,
+            created_at: new Date(),
+            file_type:fileType,
+            channel:'submit',
+            file_name:fileName,
+            created_user:userName,
+            session_doc_id:data?.log_data?.session_doc_id
+          }
+            const db_logresponse = await dbManager.insert(
+              "api_usage_logs",
+              log_response_data,
+              ["id"],
+              false
+            )
             res.json({ messageType: "S", data: post_data });
           } else {
             throw new Error("Failed to submit data");
@@ -875,10 +921,9 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
   },
   async uploadPrompt(req, res) {
     try {
-      const pdfPath = req.file.path;
       const prompt = req.body.prompt;
       const { layoutHash } = req.body;
-      const ext = path.extname(req.file.originalname).toLowerCase();
+      const ext = path.extname(req.body.filename).toLowerCase();
       let mediaType;
 
       switch (ext) {
@@ -924,10 +969,11 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
         response2[0]?.map((info) => {
           return info?.field_label;
         }) || [];
-      const fileBuffer = fs.readFileSync(pdfPath);
-      const base64Data = fileBuffer.toString("base64");
+      const base64Data = req.body.base64file
+      const modelToUse = "claude-sonnet-4-20250514"; // Keeping your original model
+      const startTime = Date.now();
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: modelToUse,
         max_tokens: 20000,
         temperature: 1,
         messages: [
@@ -941,6 +987,7 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
                   media_type: mediaType,
                   data: base64Data,
                 },
+                cache_control: { type: "ephemeral" }
               },
               {
                 type: "text",
@@ -971,17 +1018,30 @@ Follow these rules strictly:
         ],
       });
       const extractedText = response.content[0].text;
-
+      const processingTimeMs = Date.now() - startTime;
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
       let jsonObject = JSON.parse(jsonMatch[1]);
+      console.log("in upload prompt")
+      console.log(req)
+      await logLLMUsage(dbManager, {
+        response: response,
+        model: modelToUse,
+        processingTimeMs: processingTimeMs,
+        fileType: ext,
+        fileName: req.body.filename,
+        channel:'Prompt',
+        userName: req.user?.username || "promptSystem",
+        sessionDocId:req?.body?.session_id
+      });
       res.json({
         messageType: "S",
         data: jsonObject,
-        fileName: req.file.filename,
+        fileName: req.body.filename,
         base64File: base64Data,
         fileType: ext,
-        fileSize: req.file.size,
+        fileSize: req.body?.filesize,
       });
+
     } catch (error) {
       console.error("Error uploading document:", error);
       res.status(500).json({ error: "Failed to upload document" });
@@ -990,11 +1050,13 @@ Follow these rules strictly:
   async promptData(req, res) {
     const filename = req.body.filename;
     const message = req.body.message;
+    const session_doc_id = req.body.session_doc_id
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     console.log(__dirname);
     const filePath = path.join(__dirname, "..", "uploads", filename);
     console.log(filePath);
+
     try {
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: "File not found" });
@@ -1021,8 +1083,10 @@ Follow these rules strictly:
         default:
           return res.status(400).json({ error: "Unsupported file type" });
       }
+      const modelToUse = "claude-sonnet-4-20250514"; 
+      const startTime = Date.now();
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: modelToUse,
         max_tokens: 20000,
         temperature: 1,
         messages: [
@@ -1036,6 +1100,7 @@ Follow these rules strictly:
                   media_type: mediaType,
                   data: base64Data,
                 },
+                cache_control: { type: "ephemeral" }
               },
               {
                 type: "text",
@@ -1045,8 +1110,19 @@ Follow these rules strictly:
           },
         ],
       });
+      const processingTimeMs = Date.now() - startTime;
       console.log(response);
       const extractedText = response.content[0].text;
+      await logLLMUsage(dbManager, {
+        response: response,
+        model: modelToUse,
+        processingTimeMs: processingTimeMs,
+        fileType: ext,
+        fileName: filename,
+        channel:'chat',
+        userName: req.user?.username || "chatSystem",
+        sessionDocId: session_doc_id
+      });
       res.status(200).json({ messageType: "S", data: extractedText });
     } catch (error) {
       res.status(500).json({ messageType: "E", message: error.message });

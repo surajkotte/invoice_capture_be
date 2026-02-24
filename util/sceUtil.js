@@ -5,7 +5,7 @@ import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
   fileURLToPath
 } from "url";
-
+import { XMLParser } from "fast-xml-parser";
 // Resolve absolute path
 const __filename = fileURLToPath(
   import.meta.url);
@@ -77,32 +77,56 @@ export function generateStructureHash(layoutArray) {
 export async function run(pdfPath) {
   try {
     console.log("Extracting layout signature...");
-    const {
-      layout,
-      pdf_fingerprint,
-      supplierName,
-      sample_text,
-      pdfBytes,
-      pdfDoc
-    } =
-    await extractLayoutSignature(`${pdfPath}`);
-    console.log("Layout count:", layout.length);
-    const hash = generateStructureHash(layout);
-    console.log("Structure Hash:", hash);
-    return {
-      hash,
-      layout,
-      pdf_fingerprint,
-      supplierName,
-      sample_text,
-      pdfBytes,
-      pdfDoc
-    };
+    const extension = path.extname(pdfPath).toLowerCase();
+    if (extension === ".pdf") {
+      const {
+        layout,
+        pdf_fingerprint,
+        supplierName,
+        sample_text,
+        pdfBytes,
+        pdfDoc
+      } =
+      await extractLayoutSignature(`${pdfPath}`);
+      console.log("Layout count:", layout.length);
+      const hash = generateStructureHash(layout);
+      console.log("Structure Hash:", hash);
+      return {
+        hash,
+        layout,
+        pdf_fingerprint,
+        supplierName,
+        sample_text,
+        pdfBytes,
+        pdfDoc
+      };
+    } else if (extension === '.xml') {
+      console.log("Detected XML file. Switching to XML parser...");
+      return await processXmlInvoice(pdfPath);
+    }
   } catch (error) {
     console.error("Error in SCE processing:", error);
   }
 }
+async function processXmlInvoice(xmlPath) {
+  const xmlPathResolved = path.resolve("uploads", xmlPath);
+  const xmlData = fs.readFileSync(xmlPathResolved, "utf-8");
 
+  const parser = new XMLParser();
+  const jsonObj = parser.parse(xmlData);
+
+  // Since there is no visual layout, we create a stable fingerprint of the file content
+  const pdf_fingerprint = crypto.createHash("sha256").update(xmlData).digest("hex");
+
+  return {
+    type: "XML",
+    data: jsonObj,
+    pdf_fingerprint,
+    // Provide defaults so the rest of your app doesn't crash
+    layout: [],
+    hash: pdf_fingerprint
+  };
+}
 export async function extractSampleText(pdfData) {
   const pdf = pdfData;
   const page = await pdf.getPage(1);
@@ -122,7 +146,7 @@ export async function extractInvoiceUsingTemplate(pdfBytes, fields, pdfDoc) {
   console.log("in extract invoice using template");
 
   for (const f of fields) {
-        const rects = {
+    const rects = {
       left: row.left_pos,
       bottom: row.bottom_pos,
       width: row.width,
@@ -131,9 +155,10 @@ export async function extractInvoiceUsingTemplate(pdfBytes, fields, pdfDoc) {
     const text = await extractTextByRect(pdfDoc, f.page_number, rects);
     extracted[f.field_label] = text || "";
   }
-console.log("Extracted Fields:", extracted);
+  console.log("Extracted Fields:", extracted);
   return extracted;
 }
+
 function overlapRatio(a, b) {
   const xOverlap = Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1));
   const yOverlap = Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
@@ -145,7 +170,7 @@ function overlapRatio(a, b) {
 
 // export async function extractTextByRect(pdfBytes, pageNum, rect, pdf) {
 //   const page = await pdf.getPage(pageNum);
-  
+
 //   // 1. Get viewport at scale 1.0 (Native PDF units)
 //   const viewport = page.getViewport({ scale: 1.0 });
 //   const pageWidth = viewport.width;
@@ -164,7 +189,7 @@ function overlapRatio(a, b) {
 //   const selectX = rLeft * pageWidth;
 //   const selectWidth = rWidth * pageWidth;
 //   const selectHeight = rHeight * pageHeight;
-  
+
 //   // Flip Y-axis: (Page Height) - (Top Offset) - (Height of Box)
 //   const selectBottom = pageHeight - (rTop * pageHeight) - selectHeight;
 //   const selectTop = selectBottom + selectHeight;
@@ -185,7 +210,7 @@ function overlapRatio(a, b) {
 //     const tx = item.transform;
 //     const x = tx[4];
 //     const y = tx[5];
-    
+
 //     // Accurate Dimensions
 //     // Width: usually provided by PDF.js, or estimate fallback
 //     const itemWidth = item.width || (item.str.length * (tx[0] * 0.5)); 
@@ -221,7 +246,9 @@ function overlapRatio(a, b) {
 // }
 export async function extractTextByRect(pdfDoc, pageNum, rect) {
   const page = await pdfDoc.getPage(pageNum);
-  const viewport = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({
+    scale: 1
+  });
 
   // Convert normalized → absolute PDF coords
   const sel = {
@@ -235,7 +262,7 @@ export async function extractTextByRect(pdfDoc, pageNum, rect) {
   const hits = [];
 
   for (const item of content.items) {
-    const [ , , , , x, y ] = item.transform;
+    const [, , , , x, y] = item.transform;
     const w = item.width || item.str.length * 5;
     const h = Math.abs(item.transform[3]) || 10;
 
@@ -247,7 +274,11 @@ export async function extractTextByRect(pdfDoc, pageNum, rect) {
     };
 
     if (overlapRatio(box, sel) > 0.6) {
-      hits.push({ str: item.str, x, y });
+      hits.push({
+        str: item.str,
+        x,
+        y
+      });
     }
   }
 
