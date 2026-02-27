@@ -1389,8 +1389,33 @@ ${prompt}
       res.status(500).json({ messageType: "E", meessage: error.message });
     } 
   },
+  async getApiLogs(req, res) {
+    try {      
+      const pageNumber = req?.query?.page || 1;
+      const itemsPerPage = 20;
+      const offSet = (pageNumber - 1) * itemsPerPage; 
+      const countResponse = await dbManager.query(
+        "select count(*) as count from  api_usage_logs"
+      );
+      const response = await dbManager.query(
+        `SELECT * FROM api_usage_logs order by created_at desc limit ${itemsPerPage} offset ${offSet}`,
+        []
+      );
+      const total_cost = await dbManager.query(
+        "SELECT SUM(total_cost) as total FROM api_usage_logs where channel not in ('submit')"
+      );
+      const totCount = countResponse[0]?.[0]?.count;
+      const data_response = {
+        data: response[0],
+        totalCount: totCount,
+        total_cost: total_cost[0]?.[0]?.total || 0
+      };
+      res.json({ messageType: "S", data: data_response });
+    } catch (error) {
+      res.status(500).json({ messageType: "E", message: error.message });
+    }
+  },
 };
-
 // async function convertPdfToOptimizedBase64(pdfPath) {
 //   const tempDir = path.join(process.cwd(), "uploads");
 //   const poppler = new Poppler();

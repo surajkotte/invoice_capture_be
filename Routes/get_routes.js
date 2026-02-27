@@ -65,4 +65,10 @@ get_router.get(
   SQLFile.getRegistartionData
 );
 
+get_router.get("/analytics/logs", connectionCheck, (req, res, next) => {
+  res.locals.table = "logs";
+  res.locals.columns = "*";
+  next();
+}, SQLFile.getApiLogs);
+
 export default get_router;
