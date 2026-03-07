@@ -843,15 +843,51 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
   },
   async getRegistartionData(req, res) {
     const pageNumber = req?.query?.page || 1;
+    const filters = req?.query?.filters ? JSON.parse(req.query.filters) : {};
+    const regidorusername = filters?.searchTerm || "";
+    const dateFrom = filters?.dateRange?.from ? new Date(filters.dateRange.from) : null;
+    const dateTo = filters?.dateRange?.to ? new Date(filters.dateRange.to) : null;
+    const documentType = filters?.documentType || "";
+    console.log(filters, "filters in get registration data")
     const itemsPerPage = 20;
     const offSet = (pageNumber - 1) * itemsPerPage;
+    let whereConditions = [];
+    let queryParams = [];
+
+    if (regidorusername) {
+      whereConditions.push(`(document_id LIKE ? OR created_user LIKE ? OR system_name LIKE ?)`);
+      const likeTerm = `%${regidorusername}%`;
+      queryParams.push(likeTerm, likeTerm, likeTerm);
+    }
+
+    if (documentType) {
+      whereConditions.push(`file_type = ?`);
+      queryParams.push(`.${documentType}`);
+    }
+
+    if (dateFrom && dateTo) {
+      whereConditions.push(`created_date BETWEEN ? AND ?`);
+      queryParams.push(dateFrom, dateTo);
+    } else if (dateFrom) {
+      whereConditions.push(`created_date >= ?`);
+      queryParams.push(dateFrom);
+    } else if (dateTo) {
+      whereConditions.push(`created_date <= ?`);
+      queryParams.push(dateTo);
+    }
+    let whereString = "";
+    if (whereConditions.length > 0) {
+      whereString = "WHERE " + whereConditions.join(" AND ");
+    }
+    const dataParams = [...queryParams, itemsPerPage, offSet];
     try {
       const countResponse = await dbManager.query(
-        "select count(*) as count from  registration_data"
+        `select count(*) as count from  registration_data ${whereString}`,
+        queryParams
       );
       const response = await dbManager.query(
-        `SELECT * FROM registration_data order by document_id limit ${itemsPerPage} offset ${offSet}`,
-        []
+        `SELECT * FROM registration_data ${whereString} ORDER BY document_id LIMIT ? OFFSET ?`,
+        dataParams
       );
       const totCount = countResponse[0]?.[0]?.count;
       console.log(totCount);
