@@ -161,7 +161,6 @@ post_router.post(
 
 post_router.post(
   "/logout",
-  connectionCheck,
   (req, res, next) => {
     req.body.where = {
       session_id: req.cookies.token

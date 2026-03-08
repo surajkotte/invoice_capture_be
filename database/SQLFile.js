@@ -13,7 +13,12 @@ import normalizeResponseData from "../utils/NormalizeData.js";
 import sharp from "sharp";
 import FormData from "form-data";
 import logLLMUsage from "../utils/UpdateLogs.js";
-import { extractInvoiceUsingTemplate, extractLayoutSignature, run } from "../util/sceUtil.js";
+import {
+  extractInvoiceUsingTemplate,
+  extractLayoutSignature,
+  run,
+} from "../util/sceUtil.js";
+import crypto from "crypto";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 const anthropic = new Anthropic({
@@ -32,7 +37,7 @@ export const SQLFile = {
       created_at: new Date(),
     };
     try {
-      const response = await dbManager.insert(table, user_Info,["id"], false);
+      const response = await dbManager.insert(table, user_Info, ["id"], false);
       if (response) {
         if (user_Info?.id) {
           const token = JWT.sign(
@@ -40,7 +45,7 @@ export const SQLFile = {
             process.env.DECODE_SECRETE,
             {
               expiresIn: "2h",
-            }
+            },
           );
           res.cookie("token", token);
         }
@@ -60,7 +65,7 @@ export const SQLFile = {
         table,
         data,
         [""],
-        delFlag === "X" ? true : false
+        delFlag === "X" ? true : false,
       );
       if (response[0]) {
         res.json({ messageType: "S", data: response });
@@ -82,11 +87,26 @@ export const SQLFile = {
         const user = response[0][0];
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (isPasswordValid) {
-          const token = JWT.sign({ id: user.id }, process.env.DECODE_SECRETE, {
-            expiresIn: "2h",
+          console.log("Password valid for user:", user.username);
+          const csrfToken = crypto.randomBytes(32).toString("hex");
+          console.log("Generated CSRF token:", csrfToken);
+          const token = JWT.sign(
+            { id: user.id, csrfToken: csrfToken },
+            process.env.DECODE_SECRETE,
+            {
+              expiresIn: "2h",
+            },
+          );
+          res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 2 * 60 * 60 * 1000,
           });
-          res.cookie("token", token, { httpOnly: true });
-          res.json({ messageType: "S", data: { username: user.username } });
+          res.json({
+            messageType: "S",
+            data: { username: user.username, csrfToken: csrfToken },
+          });
         } else {
           res
             .status(401)
@@ -98,6 +118,7 @@ export const SQLFile = {
           .json({ messageType: "E", message: "Invalid credentials" });
       }
     } catch (error) {
+      console.error("Login error:", error);
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
@@ -172,7 +193,7 @@ export const SQLFile = {
             // get csrf_token + cookie for this system
             const tokenRows = await SQLFile.get_data1(
               "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
-              [req.tokenid, domain, port]
+              [req.tokenid, domain, port],
             );
 
             if (tokenRows?.[0]?.length > 0) {
@@ -263,7 +284,7 @@ export const SQLFile = {
           }
 
           return { ...systemInfo, connectionStatus };
-        })
+        }),
       );
       return res.json({
         messageType: "S",
@@ -273,24 +294,27 @@ export const SQLFile = {
       return res.json({ messageType: "E", message: error?.message });
     }
   },
-  async delete_systemconfig(req,res){
-    try{
-      const { id } = req.body
-      const response = await dbManager.query("select * from system_config where id = ?", [id])
-      console.log("in delete system config", response)
-      if(response[0][0]){
-        const response1 = await dbManager.delete('system_config',{'id':id})
-        console.log("in delete system config response1", response1)
-        if(response1 && response1[0]){
-          return res.status(200).json({messageType:'S', data: response1[0]})
-        }else{
-          throw new Error("No data found with")
+  async delete_systemconfig(req, res) {
+    try {
+      const { id } = req.body;
+      const response = await dbManager.query(
+        "select * from system_config where id = ?",
+        [id],
+      );
+      console.log("in delete system config", response);
+      if (response[0][0]) {
+        const response1 = await dbManager.delete("system_config", { id: id });
+        console.log("in delete system config response1", response1);
+        if (response1 && response1[0]) {
+          return res.status(200).json({ messageType: "S", data: response1[0] });
+        } else {
+          throw new Error("No data found with");
         }
-      }else{
-        throw new Error("No data found with")
+      } else {
+        throw new Error("No data found with");
       }
-    }catch(error){
-        return res.status(500).json({ messageType: "E", message: error.message });
+    } catch (error) {
+      return res.status(500).json({ messageType: "E", message: error.message });
     }
   },
   async check_connection(req, res) {
@@ -301,7 +325,7 @@ export const SQLFile = {
     try {
       const dbresponse = await dbManager.query(
         "SELECT * FROM system_config WHERE id = ?",
-        [id]
+        [id],
       );
 
       if (!dbresponse[0] || dbresponse[0].length === 0) {
@@ -315,7 +339,7 @@ export const SQLFile = {
         // check if token exists in table
         const tokenRows = await dbManager.query(
           "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? AND domain = ? AND port = ?",
-          [req.tokenid, domain, port]
+          [req.tokenid, domain, port],
         );
 
         if (tokenRows?.[0]?.length > 0) {
@@ -392,7 +416,7 @@ export const SQLFile = {
     try {
       const response1 = await dbManager.query(
         "SELECT * FROM header_fields",
-        []
+        [],
       );
       const response2 = await dbManager.query("SELECT * FROM item_fields", []);
       const Header_Fields =
@@ -413,7 +437,7 @@ export const SQLFile = {
       const file_path = req.file.path;
       const { layoutHash } = req.body;
       console.log("layout hash in upload:", layoutHash);
-      console.log(req.file)
+      console.log(req.file);
       const ext = path.extname(req.file.originalname).toLowerCase();
       let mediaType;
       let base64DataArray = [];
@@ -453,27 +477,26 @@ export const SQLFile = {
       //     [hash]
       //   );
       //   console.log(sceHash +"sce hash")
-     
+
       //   if(sceHash[0] && sceHash[0][0]){
-      //     const selectionFields = await dbManager.query("SELECT field_key, field_label, page_number, top_pos,left_pos, width, height FROM template_fields WHERE template_id = ?", [sceHash[0][0].id]);  
+      //     const selectionFields = await dbManager.query("SELECT field_key, field_label, page_number, top_pos,left_pos, width, height FROM template_fields WHERE template_id = ?", [sceHash[0][0].id]);
       //     console.log(sceHash[0][0].id, "template id")
       //     console.log(selectionFields, "selection fields")
       //     try{
       //      extractionResult = await extractInvoiceUsingTemplate(pdfBytes, selectionFields[0], pdfDoc);
       //     }catch(err){
-      //       console.log(err, "error in extraction using template")  
+      //       console.log(err, "error in extraction using template")
       //     }
 
-          
       //   }
 
       // }
 
-      let contentBlocks = []
-      let prompttext = ""
+      let contentBlocks = [];
+      let prompttext = "";
       const promptresponse = await dbManager.query(
         "SELECT * FROM prompt_data WHERE layout_hash = ?",
-        [layoutHash]
+        [layoutHash],
       );
       console.log(promptresponse, "prompt response");
       if (promptresponse[0] && promptresponse[0][0]) {
@@ -482,7 +505,7 @@ export const SQLFile = {
       console.log(prompttext, "prompt text");
       const response1 = await dbManager.query(
         "SELECT * FROM Header_Fields",
-        []
+        [],
       );
       const response2 = await dbManager.query("SELECT * FROM Item_Fields", []);
 
@@ -493,71 +516,73 @@ export const SQLFile = {
       const fileBuffer = fs.readFileSync(file_path);
       // const base64Data = fileBuffer.toString("base64");
       let rawText = "";
-    if( ext === ".xml" || ext === ".txt"){
-       rawText = fileBuffer.toString("utf-8");
-      contentBlocks.push({ type: "text", text: `Here is the source ${ext.toUpperCase()} content:\n\n${rawText}` });
-    }else{
-      //for pdf files
-      const base64Data = fileBuffer.toString("base64");
+      if (ext === ".xml" || ext === ".txt") {
+        rawText = fileBuffer.toString("utf-8");
+        contentBlocks.push({
+          type: "text",
+          text: `Here is the source ${ext.toUpperCase()} content:\n\n${rawText}`,
+        });
+      } else {
+        //for pdf files
+        const base64Data = fileBuffer.toString("base64");
+        contentBlocks.push({
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: mediaType,
+            data: base64Data,
+          },
+        });
+      }
+      //       const response = await anthropic.messages.create({
+      //         model: "claude-sonnet-4-20250514",
+      //         max_tokens: 20000,
+      //         temperature: 1,
+      //         messages: [
+      //           {
+      //             role: "user",
+      //             content: [
+      //               {
+      //                 type: "document",
+      //                 source: {
+      //                   type: "base64",
+      //                   media_type: mediaType,
+      //                   data: base64Data,
+      //                 },
+      //               },
+      //               // ...base64DataArray,
+      //               {
+      //                 type: "text",
+      //                 text: `
+      // Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.
+      // Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.
+
+      // Follow these rules strictly:
+      // - Extract **all** line items (even if partially readable).
+      // - The JSON structure must be valid and properly formatted.
+      // - If any text is not in English, translate it to English before inserting into JSON.
+      // - Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
+      // - Keep numeric values as pure numbers — do **not** include currency symbols or text.
+      // - ✅ Ensure tax fields are correctly extracted:
+      //   - "tax_rate" → numeric value (e.g., 18)
+      //   - "tax_code" → alphanumeric code (e.g., "V1")
+      // - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+      // - The "header_fields" object must contain only header-level fields.
+      // - The "item_fields" array must contain all extracted line items.
+      // - No additional fields, notes, or metadata should be added.
+      // - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
+      // - "Payment Terms" must be a 4-character alphanumeric value — not a description.
+      // - Extract data exactly as it appears in the document (except translations when needed).
+      // `,
+      //               },
+      //             ],
+      //           },
+      //         ],
+      //       });
+
       contentBlocks.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: mediaType,
-          data: base64Data,
-        },
-    });
-    }
-//       const response = await anthropic.messages.create({
-//         model: "claude-sonnet-4-20250514",
-//         max_tokens: 20000,
-//         temperature: 1,
-//         messages: [
-//           {
-//             role: "user",
-//             content: [
-//               {
-//                 type: "document",
-//                 source: {
-//                   type: "base64",
-//                   media_type: mediaType,
-//                   data: base64Data,
-//                 },
-//               },
-//               // ...base64DataArray,
-//               {
-//                 type: "text",
-//                 text: `
-// Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
-// Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
-
-// Follow these rules strictly:
-// - Extract **all** line items (even if partially readable).
-// - The JSON structure must be valid and properly formatted.
-// - If any text is not in English, translate it to English before inserting into JSON.
-// - Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
-// - Keep numeric values as pure numbers — do **not** include currency symbols or text.
-// - ✅ Ensure tax fields are correctly extracted:
-//   - "tax_rate" → numeric value (e.g., 18)
-//   - "tax_code" → alphanumeric code (e.g., "V1")
-// - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
-// - The "header_fields" object must contain only header-level fields.
-// - The "item_fields" array must contain all extracted line items.
-// - No additional fields, notes, or metadata should be added.
-// - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
-// - "Payment Terms" must be a 4-character alphanumeric value — not a description.
-// - Extract data exactly as it appears in the document (except translations when needed).
-// `,
-//               },
-//             ],
-//           },
-//         ],
-//       });
-
-      contentBlocks.push(
-                      {
-                type: "text",
-                text: `
+        type: "text",
+        text: `
 Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
 Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
 
@@ -583,57 +608,56 @@ Follow these rules strictly:
 - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 - ${prompttext}
 `,
-              },
-      )
+      });
       const startTime = Date.now();
-const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 20000,
-    temperature: 0,
-    messages: [{ role: "user", content: contentBlocks }],
-  });
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 20000,
+        temperature: 0,
+        messages: [{ role: "user", content: contentBlocks }],
+      });
       const processingTimeMs = Date.now() - startTime;
       const inputTokens = response.usage?.input_tokens || 0;
       const outputTokens = response.usage?.output_tokens || 0;
-      const inputCost = (inputTokens / 1_000_000) * 3.00;
-      const outputCost = (outputTokens / 1_000_000) * 15.00;
+      const inputCost = (inputTokens / 1_000_000) * 3.0;
+      const outputCost = (outputTokens / 1_000_000) * 15.0;
       const totalCost = inputCost + outputCost;
       const extractedText = response.content[0].text || "";
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
       const jsonObject = jsonMatch ? JSON.parse(jsonMatch[1]) : {};
       // if(extractionResult){
-      //   Object.keys(extractionResult).forEach((key) => {  
+      //   Object.keys(extractionResult).forEach((key) => {
       //     jsonObject.header_fields[key] = extractionResult[key];
       //   });
       // }
-      const session_doc_id = uuidv4()
+      const session_doc_id = uuidv4();
       logLLMUsage(dbManager, {
         response,
-        model:"claude-sonnet-4-20250514",
-        processingTimeMs:processingTimeMs,
-        fileType:ext,
-        fileName:req.file.filename,
-        userName:"ExtractionSystem",
-        channel:"extraction",
-        sessionDocId:session_doc_id
-      })
+        model: "claude-sonnet-4-20250514",
+        processingTimeMs: processingTimeMs,
+        fileType: ext,
+        fileName: req.file.filename,
+        userName: "ExtractionSystem",
+        channel: "extraction",
+        sessionDocId: session_doc_id,
+      });
       res.json({
         messageType: "S",
         data: jsonObject,
         fileName: req.file.filename,
         text_data: rawText,
-        base64Files: contentBlocks[0]?.source?.data,
+        base64Files: contentBlocks[0]?.source?.data || rawText,
         fileType: ext,
         fileSize: req.file.size,
-        log_data:{
-          id:uuidv4(),
+        log_data: {
+          id: uuidv4(),
           processingTimeMs,
           inputTokens,
           outputTokens,
-          model:"claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-20250514",
           totalCost,
-          session_doc_id
-        }
+          session_doc_id,
+        },
       });
     } catch (error) {
       console.error("Error uploading document:", error);
@@ -651,10 +675,10 @@ const response = await anthropic.messages.create({
       const user = await dbManager.query(query, [tokenid]);
       const userName = user[0][0]?.username || "";
       if (sceTemplate && false) {
-        console.log("in sce template"+ sceTemplate);
+        console.log("in sce template" + sceTemplate);
         const sceHash = await dbManager.query(
           "SELECT * FROM invoice_templates WHERE layout_hash = ?",
-          [layoutHash]
+          [layoutHash],
         );
         if (sceHash[0].length > 0) {
           const updateHash = sceHash[0][0]?.layout_hash || "";
@@ -662,33 +686,40 @@ const response = await anthropic.messages.create({
             await dbManager.update(
               "invoice_templates",
               { layout_hash: layoutHash },
-              { template_name: sceTemplate }
+              { template_name: sceTemplate },
             );
-          }else{
+          } else {
             console.log("Template already exists with the same layout hash.");
-            const template_fields = await dbManager.query("SELECT * FROM template_fields WHERE template_id = ?", [sceHash[0][0]?.id]);
+            const template_fields = await dbManager.query(
+              "SELECT * FROM template_fields WHERE template_id = ?",
+              [sceHash[0][0]?.id],
+            );
             const last_inedx = template_fields[0]?.length || 0;
             const fieldMappings = Object.entries(sceTemplate).map(
               ([fieldLabel, fieldValue], index) => {
                 console.log(fieldLabel, "field label");
                 console.log(fieldValue, "field value");
                 return {
-                id: (template_fields[0]?.find(f => f.field_label === fieldLabel)?.id) || last_inedx + index + 1,
-                template_id: sceHash[0][0]?.id,
-                page_number: fieldValue.page,
-                bottom_pos: fieldValue.rect[0].bottom_pos,
-                left_pos: fieldValue.rect[0].left_pos,
-                width: fieldValue.rect[0].width,
-                height: fieldValue.rect[0].height,
-                field_label: fieldLabel,
-                created_at: new Date(),
-              };
-            });
+                  id:
+                    template_fields[0]?.find(
+                      (f) => f.field_label === fieldLabel,
+                    )?.id || last_inedx + index + 1,
+                  template_id: sceHash[0][0]?.id,
+                  page_number: fieldValue.page,
+                  bottom_pos: fieldValue.rect[0].bottom_pos,
+                  left_pos: fieldValue.rect[0].left_pos,
+                  width: fieldValue.rect[0].width,
+                  height: fieldValue.rect[0].height,
+                  field_label: fieldLabel,
+                  created_at: new Date(),
+                };
+              },
+            );
             await dbManager.insert(
               "template_fields",
               fieldMappings,
               ["template_id"],
-              false
+              false,
             );
           }
         } else {
@@ -702,13 +733,12 @@ const response = await anthropic.messages.create({
               layout_hash: layoutHash,
             },
             ["id"],
-            false
+            false,
           );
           if (true) {
             const fieldMappings = Object.entries(sceTemplate).map(
-                ([fieldLabel, fieldValue], index) =>( {
-          
-                id: index+1,
+              ([fieldLabel, fieldValue], index) => ({
+                id: index + 1,
                 template_id: new_id,
                 page_number: fieldValue.page,
                 bottom_pos: fieldValue.rect[0].bottom_pos,
@@ -717,13 +747,14 @@ const response = await anthropic.messages.create({
                 height: fieldValue.rect[0].height,
                 field_label: fieldLabel,
                 created_at: new Date(),
-              }));
-            
+              }),
+            );
+
             await dbManager.insert(
               "template_fields",
               fieldMappings,
               ["template_id"],
-              false
+              false,
             );
           } else {
             console.error("Failed to insert template.");
@@ -732,29 +763,33 @@ const response = await anthropic.messages.create({
       }
       const response = await dbManager.query(
         "SELECT csrf_token,cookie FROM token_table WHERE session_id = ? and domain = ? and port = ?",
-        [token, domain, port]
+        [token, domain, port],
       );
-      const headerfields = await dbManager.query( "SELECT * FROM Header_Fields where field_type = ?", ["Date"]);
+      const headerfields = await dbManager.query(
+        "SELECT * FROM Header_Fields where field_type = ?",
+        ["Date"],
+      );
       headerfields[0].forEach((field) => {
         const fieldKey = field.Field_name;
         if (data.headerData && data.headerData[fieldKey]) {
-            const fieldValue = data.headerData[fieldKey];
-            console.log("field value before date formatting:", fieldValue);
-const parts = fieldValue.split('/');
-const date = new Date(parts[2], parts[1] - 1, parts[0]);
+          const fieldValue = data.headerData[fieldKey];
+          console.log("field value before date formatting:", fieldValue);
+          const parts = fieldValue.split("/");
+          const date = new Date(parts[2], parts[1] - 1, parts[0]);
 
-  console.log("parsed date:", date);
+          console.log("parsed date:", date);
 
-if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  
-  const formattedDate = `${yyyy}${mm}${dd}`;
-  data.headerData[fieldKey] = formattedDate;
-}
+          if (!isNaN(date.getTime())) {
+            // Use .getTime() for a more robust check
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const dd = String(date.getDate()).padStart(2, "0");
+
+            const formattedDate = `${yyyy}${mm}${dd}`;
+            data.headerData[fieldKey] = formattedDate;
           }
-        });
+        }
+      });
       if (response[0].length > 0) {
         const serviceUrl = `https://${domain}:${port}/sap/opu/odata/sap/Z_LOGIN_SRV/JsonResponseSet`;
         const payload = {
@@ -802,36 +837,40 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
             "registration_data",
             post_data,
             ["id"],
-            false
+            false,
           );
           if (db_response) {
-          const log_response_data =  {
-            id:data?.log_data?.id,
-            document_id: regid,
-            model_name: data?.log_data?.model,
-            output_tokens: data?.log_data?.outputTokens,
-            input_tokens: data?.log_data?.inputTokens,
-            processing_time_ms: data?.log_data?.processingTimeMs,
-            total_cost: data?.log_data?.totalCost,
-            created_at: new Date(),
-            file_type:fileType,
-            channel:'submit',
-            file_name:fileName,
-            created_user:userName,
-            session_doc_id:data?.log_data?.session_doc_id
-          }
+            const log_response_data = {
+              id: data?.log_data?.id,
+              document_id: regid,
+              model_name: data?.log_data?.model,
+              output_tokens: data?.log_data?.outputTokens,
+              input_tokens: data?.log_data?.inputTokens,
+              processing_time_ms: data?.log_data?.processingTimeMs,
+              total_cost: data?.log_data?.totalCost,
+              created_at: new Date(),
+              file_type: fileType,
+              channel: "submit",
+              file_name: fileName,
+              created_user: userName,
+              session_doc_id: data?.log_data?.session_doc_id,
+            };
             const db_logresponse = await dbManager.insert(
               "api_usage_logs",
               log_response_data,
               ["id"],
-              false
-            )
+              false,
+            );
             res.json({ messageType: "S", data: post_data });
           } else {
             throw new Error("Failed to submit data");
           }
         } else {
-          console.log("Failed to submit data:", postResponse.status, postResponse.data);
+          console.log(
+            "Failed to submit data:",
+            postResponse.status,
+            postResponse.data,
+          );
           throw new Error("Failed to submit data");
         }
       } else {
@@ -845,17 +884,23 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
     const pageNumber = req?.query?.page || 1;
     const filters = req?.query?.filters ? JSON.parse(req.query.filters) : {};
     const regidorusername = filters?.searchTerm || "";
-    const dateFrom = filters?.dateRange?.from ? new Date(filters.dateRange.from) : null;
-    const dateTo = filters?.dateRange?.to ? new Date(filters.dateRange.to) : null;
+    const dateFrom = filters?.dateRange?.from
+      ? new Date(filters.dateRange.from)
+      : null;
+    const dateTo = filters?.dateRange?.to
+      ? new Date(filters.dateRange.to)
+      : null;
     const documentType = filters?.documentType || "";
-    console.log(filters, "filters in get registration data")
+    console.log(filters, "filters in get registration data");
     const itemsPerPage = 20;
     const offSet = (pageNumber - 1) * itemsPerPage;
     let whereConditions = [];
     let queryParams = [];
 
     if (regidorusername) {
-      whereConditions.push(`(document_id LIKE ? OR created_user LIKE ? OR system_name LIKE ?)`);
+      whereConditions.push(
+        `(document_id LIKE ? OR created_user LIKE ? OR system_name LIKE ?)`,
+      );
       const likeTerm = `%${regidorusername}%`;
       queryParams.push(likeTerm, likeTerm, likeTerm);
     }
@@ -883,11 +928,11 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
     try {
       const countResponse = await dbManager.query(
         `select count(*) as count from  registration_data ${whereString}`,
-        queryParams
+        queryParams,
       );
       const response = await dbManager.query(
         `SELECT * FROM registration_data ${whereString} ORDER BY document_id LIMIT ? OFFSET ?`,
-        dataParams
+        dataParams,
       );
       const totCount = countResponse[0]?.[0]?.count;
       console.log(totCount);
@@ -982,7 +1027,7 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
       console.log(layoutHash, "layout hash in upload prompt");
       const promptsdata = await dbManager.query(
         "SELECT * FROM prompt_data WHERE layout_hash = ?",
-        [layoutHash]
+        [layoutHash],
       );
       console.log(promptsdata, "promptsdata");
       let promptText = "";
@@ -994,7 +1039,7 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
       console.log(promptText, "final prompt text");
       const response1 = await dbManager.query(
         "SELECT * FROM Header_Fields",
-        []
+        [],
       );
       const response2 = await dbManager.query("SELECT * FROM Item_Fields", []);
       const Header_Fields =
@@ -1005,29 +1050,76 @@ if (!isNaN(date.getTime())) { // Use .getTime() for a more robust check
         response2[0]?.map((info) => {
           return info?.field_label;
         }) || [];
-      const base64Data = req.body.base64file
+      const base64Data = req.body.base64file;
       const modelToUse = "claude-sonnet-4-20250514"; // Keeping your original model
-      const startTime = Date.now();
-      const response = await anthropic.messages.create({
-        model: modelToUse,
-        max_tokens: 20000,
-        temperature: 1,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data: base64Data,
-                },
-                cache_control: { type: "ephemeral" }
-              },
-              {
-                type: "text",
-                text: `Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
+      let contentBlocks = [];
+      if (ext === ".xml" || ext === ".txt") {
+        let rawText = base64Data;
+        contentBlocks.push({
+          type: "text",
+          text: `Here is the source ${ext.toUpperCase()} content:\n\n${rawText}`,
+        });
+      } else {
+        //for pdf files
+        contentBlocks.push({
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: mediaType,
+            data: base64Data,
+          },
+        });
+      }
+      console.log("Content blocks prepared for Claude:", contentBlocks);
+      //       const response = await anthropic.messages.create({
+      //         model: modelToUse,
+      //         max_tokens: 20000,
+      //         temperature: 1,
+      //         messages: [
+      //           {
+      //             role: "user",
+      //             content: [
+      //               {
+      //                 type: "document",
+      //                 source: {
+      //                   type: "base64",
+      //                   media_type: mediaType,
+      //                   data: base64Data,
+      //                 },
+      //                 cache_control: { type: "ephemeral" }
+      //               },
+      //               {
+      //                 type: "text",
+      //                 text: `Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.
+      // Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.
+
+      // Follow these rules strictly:
+      // - ${promptText}
+      // - Extract **all** line items (even if partially readable).
+      // - The JSON structure must be valid and properly formatted.
+      // - If any text is not in English, translate it to English before inserting into JSON.
+      // - Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
+      // - Keep numeric values as pure numbers — do **not** include currency symbols or text.
+      // - ✅ Ensure tax fields are correctly extracted:
+      //   - "tax_rate" → numeric value (e.g., 18)
+      //   - "tax_code" → alphanumeric code (e.g., "V1")
+      // - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+      // - The "header_fields" object must contain only header-level fields.
+      // - The "item_fields" array must contain all extracted line items.
+      // - No additional fields, notes, or metadata should be added.
+      // - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
+      // - "Payment Terms" must be a 4-character alphanumeric value — not a description.
+      // - Extract data exactly as it appears in the document (except translations when needed).
+      // `,
+      //               },
+      //             ],
+      //           },
+      //         ],
+      //       });
+      contentBlocks.push({
+        type: "text",
+        text: `
+Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
 Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
 
 Follow these rules strictly:
@@ -1035,39 +1127,44 @@ Follow these rules strictly:
 - Extract **all** line items (even if partially readable).
 - The JSON structure must be valid and properly formatted.
 - If any text is not in English, translate it to English before inserting into JSON.
-- Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "currency" field.
 - Keep numeric values as pure numbers — do **not** include currency symbols or text.
-- ✅ Ensure tax fields are correctly extracted:
+- Ensure tax fields are correctly extracted:
   - "tax_rate" → numeric value (e.g., 18)
   - "tax_code" → alphanumeric code (e.g., "V1")
+- Header field gross amount and Item level gross amounts are not same. Header gross amount is generally the sum of all line item gross amounts plus/minus any additional charges/discounts/taxes. So, always ensure to extract the exact gross amount as shown in the Header for the Header gross amount field, and the exact gross amount for each line item as shown in the document for the Item level gross amounts.
 - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+- Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "Currency" fields of both header and item fields.
+- If theres a currency Symbol in the document, make sure to extract the currency code(ISO) and put it in the "Currency" field. For example, if the document shows "$100", extract "USD" and put it in the "Currency" field, while keeping the numeric value as "100" in the relevant amount field.
+- In case currency not detected in Header but in the line items then fill currency from line item to Header
 - The "header_fields" object must contain only header-level fields.
 - The "item_fields" array must contain all extracted line items.
 - No additional fields, notes, or metadata should be added.
 - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
 - "Payment Terms" must be a 4-character alphanumeric value — not a description.
 - Extract data exactly as it appears in the document (except translations when needed).
+- Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 `,
-              },
-            ],
-          },
-        ],
+      });
+      const startTime = Date.now();
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 20000,
+        temperature: 0,
+        messages: [{ role: "user", content: contentBlocks }],
       });
       const extractedText = response.content[0].text;
       const processingTimeMs = Date.now() - startTime;
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
       let jsonObject = JSON.parse(jsonMatch[1]);
-      console.log("in upload prompt")
-      console.log(req)
       await logLLMUsage(dbManager, {
         response: response,
         model: modelToUse,
         processingTimeMs: processingTimeMs,
         fileType: ext,
         fileName: req.body.filename,
-        channel:'Prompt',
+        channel: "Prompt",
         userName: req.user?.username || "promptSystem",
-        sessionDocId:req?.body?.session_id
+        sessionDocId: req?.body?.session_id,
       });
       res.json({
         messageType: "S",
@@ -1077,7 +1174,6 @@ Follow these rules strictly:
         fileType: ext,
         fileSize: req.body?.filesize,
       });
-
     } catch (error) {
       console.error("Error uploading document:", error);
       res.status(500).json({ error: "Failed to upload document" });
@@ -1086,7 +1182,7 @@ Follow these rules strictly:
   async promptData(req, res) {
     const filename = req.body.filename;
     const message = req.body.message;
-    const session_doc_id = req.body.session_doc_id
+    const session_doc_id = req.body.session_doc_id;
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     console.log(__dirname);
@@ -1119,32 +1215,35 @@ Follow these rules strictly:
         default:
           return res.status(400).json({ error: "Unsupported file type" });
       }
-      const modelToUse = "claude-sonnet-4-20250514"; 
+      const modelToUse = "claude-sonnet-4-20250514";
+      let contentBlocks = [];
+      if (ext === ".xml" || ext === ".txt") {
+        let rawText = base64Data;
+        contentBlocks.push({
+          type: "text",
+          text: `Here is the source ${ext.toUpperCase()} content:\n\n${rawText}`,
+        });
+      } else {
+        //for pdf files
+        contentBlocks.push({
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: mediaType,
+            data: base64Data,
+          },
+        });
+      }
+      contentBlocks.push({
+        type: "text",
+        text: `Answer the question based on the provided content. ${message}`,
+      });
       const startTime = Date.now();
       const response = await anthropic.messages.create({
         model: modelToUse,
         max_tokens: 20000,
         temperature: 1,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data: base64Data,
-                },
-                cache_control: { type: "ephemeral" }
-              },
-              {
-                type: "text",
-                text: `From the provided base64data answer the question given ${message}`,
-              },
-            ],
-          },
-        ],
+        messages: [{ role: "user", content: contentBlocks }],
       });
       const processingTimeMs = Date.now() - startTime;
       console.log(response);
@@ -1155,9 +1254,9 @@ Follow these rules strictly:
         processingTimeMs: processingTimeMs,
         fileType: ext,
         fileName: filename,
-        channel:'chat',
+        channel: "chat",
         userName: req.user?.username || "chatSystem",
-        sessionDocId: session_doc_id
+        sessionDocId: session_doc_id,
       });
       res.status(200).json({ messageType: "S", data: extractedText });
     } catch (error) {
@@ -1186,7 +1285,7 @@ Follow these rules strictly:
       }
       const response1 = await dbManager.query(
         "SELECT * FROM header_fields",
-        []
+        [],
       );
       const response2 = await dbManager.query("SELECT * FROM item_fields", []);
       const Header_Fields =
@@ -1282,7 +1381,7 @@ ${prompt}
     try {
       const mailauthRes = await dbManager.query(
         "SELECT csrf_token, cookie, updated_at FROM mail_auth where user = ?",
-        [process.env.SYSTEM_USER]
+        [process.env.SYSTEM_USER],
       );
       let csrf_token = mailauthRes[0][0]?.csrf_token || "";
       let cookie = mailauthRes[0][0]?.cookie || "";
@@ -1363,7 +1462,7 @@ ${prompt}
           "registration_data",
           post_data,
           ["id"],
-          false
+          false,
         );
         if (db_response) {
           return db_response;
@@ -1387,64 +1486,61 @@ ${prompt}
   async savePromptData(req, res) {
     try {
       const { filename, prompt, layoutHash } = req.body;
-      const  dbresponse = await dbManager.query(
+      const dbresponse = await dbManager.query(
         "SELECT * FROM prompt_data WHERE layout_hash = ?",
-        [layoutHash]
+        [layoutHash],
       );
       if (dbresponse[0].length > 0) {
-        let existingPrompts = dbresponse[0][0].prompts; 
+        let existingPrompts = dbresponse[0][0].prompts;
         if (!Array.isArray(existingPrompts)) existingPrompts = [];
         if (!existingPrompts.includes(prompt)) {
-        existingPrompts.push(prompt);
-         }
-    const response = await dbManager.update_data(
-        "prompt_data",
-        { prompts: JSON.stringify(existingPrompts) },
-        { layout_hash: layoutHash }
-    );
-    if (response) {
-        res.json({ messageType: "S", data: response });
-    }else {
-        throw new Error("Failed to update prompt data");
-    }
-  } else {
-    const response = await dbManager.insert_data(
-          "prompt_data",
-        {
-            layout_hash: layoutHash,
-            prompts: JSON.stringify([prompt]), // Notice the brackets [ ]
+          existingPrompts.push(prompt);
         }
-    );
-      if (response) {
+        const response = await dbManager.update_data(
+          "prompt_data",
+          { prompts: JSON.stringify(existingPrompts) },
+          { layout_hash: layoutHash },
+        );
+        if (response) {
           res.json({ messageType: "S", data: response });
-      }else {
-        throw new Error("Failed to insert prompt data");
+        } else {
+          throw new Error("Failed to update prompt data");
+        }
+      } else {
+        const response = await dbManager.insert_data("prompt_data", {
+          layout_hash: layoutHash,
+          prompts: JSON.stringify([prompt]), // Notice the brackets [ ]
+        });
+        if (response) {
+          res.json({ messageType: "S", data: response });
+        } else {
+          throw new Error("Failed to insert prompt data");
+        }
       }
-    }
-    }    catch (error) {
+    } catch (error) {
       res.status(500).json({ messageType: "E", meessage: error.message });
-    } 
+    }
   },
   async getApiLogs(req, res) {
-    try {      
+    try {
       const pageNumber = req?.query?.page || 1;
-      const itemsPerPage = 20;
-      const offSet = (pageNumber - 1) * itemsPerPage; 
+      const itemsPerPage = '5000';
+      const offSet = (pageNumber - 1) * itemsPerPage;
       const countResponse = await dbManager.query(
-        "select count(*) as count from  api_usage_logs"
+        "select count(*) as count from  api_usage_logs",
       );
       const response = await dbManager.query(
         `SELECT * FROM api_usage_logs order by created_at desc limit ${itemsPerPage} offset ${offSet}`,
-        []
+        [],
       );
       const total_cost = await dbManager.query(
-        "SELECT SUM(total_cost) as total FROM api_usage_logs where channel not in ('submit')"
+        "SELECT SUM(total_cost) as total FROM api_usage_logs where channel not in ('submit')",
       );
       const totCount = countResponse[0]?.[0]?.count;
       const data_response = {
         data: response[0],
         totalCount: totCount,
-        total_cost: total_cost[0]?.[0]?.total || 0
+        total_cost: total_cost[0]?.[0]?.total || 0,
       };
       res.json({ messageType: "S", data: data_response });
     } catch (error) {
@@ -1600,7 +1696,7 @@ async function convertPdfToOptimizedBase64(pdfPath) {
     } catch (error) {
       console.error(
         `Enhancement or Sharp failed on ${file}, using original:`,
-        error
+        error,
       );
       imageBuffer = await fs.promises.readFile(outputPath);
     }
@@ -1623,8 +1719,8 @@ async function enhanceImageBuffer(imageBuffer, filename) {
 
   console.log(
     `Sending ${filename} (${(imageBuffer.length / 1024).toFixed(
-      2
-    )} KB) for CV enhancement...`
+      2,
+    )} KB) for CV enhancement...`,
   );
 
   const form = new FormData();
@@ -1643,20 +1739,20 @@ async function enhanceImageBuffer(imageBuffer, filename) {
           ...form.getHeaders(),
         },
         responseType: "arraybuffer",
-      }
+      },
     );
 
     if (response.status !== 200) {
       throw new Error(
         `HTTP error! Status: ${
           response.status
-        }. Body: ${response.data.toString()}`
+        }. Body: ${response.data.toString()}`,
       );
     }
     return Buffer.from(response.data);
   } catch (error) {
     const apiError = new Error(
-      `API communication failed for ${filename}: ${error.message}`
+      `API communication failed for ${filename}: ${error.message}`,
     );
     apiError.originalError = error;
     throw apiError;

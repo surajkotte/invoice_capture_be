@@ -7,10 +7,16 @@ const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
 export const connectionCheck = async (req, res, next) => {
   const token = req.cookies.token;
+  const csrfHeader = req?.headers["x-csrf-token"];
   if (!token)
     return res.status(401).json({ messageType: "E", message: "Unauthorized" });
   try {
     const decoded = jwt.verify(token, process.env.DECODE_SECRETE);
+    console.log("Decoded token:", decoded);
+    console.log("CSRF token from header:", csrfHeader);
+    if (csrfHeader !== decoded?.csrfToken) {
+      return res.status(403).json({ messageType: "E", message: "Forbidden" });
+    }
     const query = "SELECT * FROM users WHERE id = ?";
     console.log(query)
     const data = [decoded?.id];

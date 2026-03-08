@@ -29,10 +29,14 @@ get_router.get(
 
 get_router.get("/check", (req, res, next) => {
   const token = req.cookies.token;
+  const csrfHeader = req?.headers["x-csrf-token"];
   if (!token)
     return res.status(401).json({ messageType: "E", message: "Unauthorized" });
   try {
     const decoded = jwt.verify(token, process.env.DECODE_SECRETE);
+    if (csrfHeader !== decoded?.csrfToken) {
+      return res.status(403).json({ messageType: "E", message: "Forbidden" });
+    }
     const query = "SELECT * FROM users WHERE id = ?";
     const data = { id: decoded?.id };
     if (SQLFile.check_id(query, data))
@@ -58,7 +62,7 @@ get_router.get(
 
 get_router.get(
   "/data",
-  //  connectionCheck,
+   connectionCheck,
   (req, res, next) => {
     next();
   },
