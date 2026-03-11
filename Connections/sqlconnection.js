@@ -10,6 +10,8 @@ const config = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
 };
 console.log(config);
 const dbManager = new SQLManager(config);

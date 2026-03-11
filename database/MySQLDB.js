@@ -6,7 +6,7 @@ class SQLManager {
   }
   async connect() {
     try {
-      this.sqldb = await mysql.createConnection(this.sqldbconfig);
+      this.sqldb = await mysql.createPool(this.sqldbconfig);
       return this.sqldb;
     } catch (error) {
       throw error;

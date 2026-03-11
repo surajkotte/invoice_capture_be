@@ -142,7 +142,7 @@ class PersistentQueue {
         if (!msg) return;
 
         this.markStatus(msg.id, "processing");
-        console.log(`🔧 Processing: ${msg.filename}`);
+        console.log(` Processing: ${msg.filename}`);
 
         const contentBuffer =
           typeof msg.content === "string"

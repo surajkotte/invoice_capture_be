@@ -580,9 +580,36 @@ export const SQLFile = {
       //         ],
       //       });
 
-      contentBlocks.push({
-        type: "text",
-        text: `
+      //       contentBlocks.push({
+      //         type: "text",
+      //         text: `
+      // Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.
+      // Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.
+
+      // Follow these rules strictly:
+      // - Extract **all** line items (even if partially readable).
+      // - The JSON structure must be valid and properly formatted.
+      // - If any text is not in English, translate it to English before inserting into JSON.
+      // - Keep numeric values as pure numbers — do **not** include currency symbols or text.
+      // - Ensure tax fields are correctly extracted:
+      //   - "tax_rate" → numeric value (e.g., 18)
+      //   - "tax_code" → alphanumeric code (e.g., "V1")
+      // - Header field gross amount and Item level gross amounts are not same. Header gross amount is generally the sum of all line item gross amounts plus/minus any additional charges/discounts/taxes. So, always ensure to extract the exact gross amount as shown in the Header for the Header gross amount field, and the exact gross amount for each line item as shown in the document for the Item level gross amounts.
+      // - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+      // - Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "Currency" fields of both header and item fields.
+      // - If theres a currency Symbol in the document, make sure to extract the currency code(ISO) and put it in the "Currency" field. For example, if the document shows "$100", extract "USD" and put it in the "Currency" field, while keeping the numeric value as "100" in the relevant amount field.
+      // - In case currency not detected in Header but in the line items then fill currency from line item to Header
+      // - The "header_fields" object must contain only header-level fields.
+      // - The "item_fields" array must contain all extracted line items.
+      // - No additional fields, notes, or metadata should be added.
+      // - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
+      // - "Payment Terms" must be a 4-character alphanumeric value — not a description.
+      // - Extract data exactly as it appears in the document (except translations when needed).
+      // - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
+      // - ${prompttext}
+      // `,
+      // });
+      let system_prompt = `
 Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
 Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
 
@@ -607,13 +634,13 @@ Follow these rules strictly:
 - Extract data exactly as it appears in the document (except translations when needed).
 - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 - ${prompttext}
-`,
-      });
+`;
       const startTime = Date.now();
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
         temperature: 0,
+        system: system_prompt,
         messages: [{ role: "user", content: contentBlocks }],
       });
       const processingTimeMs = Date.now() - startTime;
@@ -1116,9 +1143,36 @@ Follow these rules strictly:
       //           },
       //         ],
       //       });
-      contentBlocks.push({
-        type: "text",
-        text: `
+      //       contentBlocks.push({
+      //         type: "text",
+      //         text: `
+      // Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.
+      // Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.
+
+      // Follow these rules strictly:
+      // - ${promptText}
+      // - Extract **all** line items (even if partially readable).
+      // - The JSON structure must be valid and properly formatted.
+      // - If any text is not in English, translate it to English before inserting into JSON.
+      // - Keep numeric values as pure numbers — do **not** include currency symbols or text.
+      // - Ensure tax fields are correctly extracted:
+      //   - "tax_rate" → numeric value (e.g., 18)
+      //   - "tax_code" → alphanumeric code (e.g., "V1")
+      // - Header field gross amount and Item level gross amounts are not same. Header gross amount is generally the sum of all line item gross amounts plus/minus any additional charges/discounts/taxes. So, always ensure to extract the exact gross amount as shown in the Header for the Header gross amount field, and the exact gross amount for each line item as shown in the document for the Item level gross amounts.
+      // - Field names must match exactly with those in ${Header_Fields} and ${Item_Fields}, with no underscores or variations.
+      // - Put the currency code or symbol (e.g., "USD", "EUR", "INR") **only** in the "Currency" fields of both header and item fields.
+      // - If theres a currency Symbol in the document, make sure to extract the currency code(ISO) and put it in the "Currency" field. For example, if the document shows "$100", extract "USD" and put it in the "Currency" field, while keeping the numeric value as "100" in the relevant amount field.
+      // - In case currency not detected in Header but in the line items then fill currency from line item to Header
+      // - The "header_fields" object must contain only header-level fields.
+      // - The "item_fields" array must contain all extracted line items.
+      // - No additional fields, notes, or metadata should be added.
+      // - Do not infer or invent any values not present in the document. If a field is missing, set it to an empty string ("").
+      // - "Payment Terms" must be a 4-character alphanumeric value — not a description.
+      // - Extract data exactly as it appears in the document (except translations when needed).
+      // - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
+      // `,
+      //       });
+      let system_prompt = `
 Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
 Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
 
@@ -1143,13 +1197,13 @@ Follow these rules strictly:
 - "Payment Terms" must be a 4-character alphanumeric value — not a description.
 - Extract data exactly as it appears in the document (except translations when needed).
 - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
-`,
-      });
+`;
       const startTime = Date.now();
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
         temperature: 0,
+        system: system_prompt,
         messages: [{ role: "user", content: contentBlocks }],
       });
       const extractedText = response.content[0].text;
@@ -1265,6 +1319,7 @@ Follow these rules strictly:
   },
   async extract_image(filename, size, contentType, content, type, prompt) {
     try {
+
       let mediaType;
       switch (contentType) {
         case "application/pdf":
@@ -1284,10 +1339,10 @@ Follow these rules strictly:
           return res.status(400).json({ error: "Unsupported file type" });
       }
       const response1 = await dbManager.query(
-        "SELECT * FROM header_fields",
+        "SELECT * FROM Header_Fields",
         [],
       );
-      const response2 = await dbManager.query("SELECT * FROM item_fields", []);
+      const response2 = await dbManager.query("SELECT * FROM Item_Fields", []);
       const Header_Fields =
         response1[0]?.map((info) => {
           return info?.field_label;
@@ -1383,11 +1438,20 @@ ${prompt}
         "SELECT csrf_token, cookie, updated_at FROM mail_auth where user = ?",
         [process.env.SYSTEM_USER],
       );
+      console.log(mailauthRes, "mail auth response");
       let csrf_token = mailauthRes[0][0]?.csrf_token || "";
       let cookie = mailauthRes[0][0]?.cookie || "";
       let timeLimit = mailauthRes[0][0]?.updated_at || "";
-      const domain = "mu2r3d53.otxlab.net";
-      const port = "44300";
+      const system_info = await dbManager.query(
+        "select * from system_config where is_default = ?",
+        [1],
+      );
+      console.log(system_info, "system info");
+      const domain = system_info[0][0]?.system_domain;
+      const port = system_info[0][0]?.system_port;
+      if (!domain || !port) {
+        throw new Error("System configuration is missing");
+      }
       const now = new Date();
       const hours = now.getHours().toString().padStart(2, "0");
       const minutes = now.getMinutes().toString().padStart(2, "0");
@@ -1473,6 +1537,7 @@ ${prompt}
         throw new Error("Not able to connect to server");
       }
     } catch (error) {
+      console.error("Error in mail upload:", error);
       throw error;
     }
   },
@@ -1524,7 +1589,7 @@ ${prompt}
   async getApiLogs(req, res) {
     try {
       const pageNumber = req?.query?.page || 1;
-      const itemsPerPage = '5000';
+      const itemsPerPage = "5000";
       const offSet = (pageNumber - 1) * itemsPerPage;
       const countResponse = await dbManager.query(
         "select count(*) as count from  api_usage_logs",

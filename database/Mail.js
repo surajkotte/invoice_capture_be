@@ -2,8 +2,12 @@ import ImapConfig from "../Connections/MailConfig.js";
 import Imap from "node-imap";
 import { SQLFile } from "./SQLFile.js";
 import { simpleParser } from "mailparser";
+import fs from "fs";
+import path from "path";
+import { run } from "../util/sceUtil.js";
 import pLimit from "p-limit";
 import PersistentQueue from "../utils/Queue.js";
+import dbManager from "../Connections/sqlconnection.js";
 const limit = pLimit(3);
 let reconnectTimeout;
 let imap;
@@ -61,7 +65,7 @@ const createAndConnect = () => {
 
                   if (parsed.attachments.length > 0) {
                     console.log(
-                      `Found ${parsed.attachments.length} attachment(s)`
+                      `Found ${parsed.attachments.length} attachment(s)`,
                     );
                     processAttachments(parsed.attachments);
                   } else {
@@ -86,7 +90,7 @@ const createAndConnect = () => {
           {
             bodies: "",
             markSeen: true,
-          }
+          },
         );
 
         fetch.on("message", (msg, seqno) => {
@@ -110,7 +114,7 @@ const createAndConnect = () => {
                 console.log("Body:", parsed.text);
                 if (parsed.attachments.length > 0) {
                   console.log(
-                    `Found ${parsed.attachments.length} attachment(s)`
+                    `Found ${parsed.attachments.length} attachment(s)`,
                   );
                   //processAttachments(parsed?.attachments);
                   await enqueueAttachments(parsed.attachments);
@@ -164,7 +168,7 @@ async function processAttachments(attachments) {
   console.log(`Processing ${validAttachments.length} valid attachment(s)`);
 
   const uploadTasks = validAttachments.map((attachment, index) =>
-    limit(() => processAttachment(attachment, index))
+    limit(() => processAttachment(attachment, index)),
   );
 
   await Promise.all(uploadTasks);
@@ -183,15 +187,26 @@ async function uploadWithRetry(payload, filename, retries = 3) {
     return { messageType: "E", message: `Upload failed for ${err.message}` };
   }
 }
-async function extractWithRetry(attachment, retries = 3) {
+async function extractWithRetry(attachment, layoutHash, retries = 3) {
   try {
     console.log(`Extracting ${attachment.filename}...`);
+    let prompttext = "";
+    const promptresponse = await dbManager.query(
+      "SELECT * FROM prompt_data WHERE layout_hash = ?",
+      [layoutHash],
+    );
+    console.log(promptresponse, "prompt response");
+    if (promptresponse[0] && promptresponse[0][0]) {
+      prompttext = promptresponse[0][0]?.prompts || "";
+    }
+    console.log(prompttext, "prompt text");
     const payload = await SQLFile.extract_image(
       attachment.filename || "unknown",
       attachment.size || 0,
       attachment.contentType || "unknown",
       attachment.content || Buffer.alloc(0),
-      attachment.type || "unknown"
+      attachment.type || "unknown",
+      prompttext
     );
     console.log(payload);
     if (!payload || !payload.payload) {
@@ -201,14 +216,14 @@ async function extractWithRetry(attachment, retries = 3) {
   } catch (err) {
     if (retries > 0) {
       console.warn(
-        `Extraction failed for ${attachment.filename}, retries left: ${retries}`
+        `Extraction failed for ${attachment.filename}, retries left: ${retries}`,
       );
       await new Promise((res) => setTimeout(res, 1000 * (4 - retries)));
-      return extractWithRetry(attachment, retries - 1);
+      return extractWithRetry(attachment, layoutHash, retries - 1);
     }
     console.error(
       `Extraction ultimately failed for ${attachment.filename}:`,
-      err
+      err,
     );
     return null;
   }
@@ -239,7 +254,18 @@ function isValidAttachment(attachment) {
 async function processAttachment(attachment) {
   try {
     console.log(`Processing ${attachment.filename}...`);
-    const payload = await extractWithRetry(attachment, 3);
+    let layoutHash = null;
+    const ext = path.extname(attachment.filename).toLowerCase();
+    const tempFilename = `mail-${Date.now()}-${attachment.filename}`;
+    let tempFilePath = path.resolve("uploads", tempFilename);
+    fs.writeFileSync(tempFilePath, attachment.content);
+    console.log(`Generating layout hash for ${attachment.filename}...`);
+    const runResult = await run(tempFilename);
+    if (runResult && runResult.hash) {
+      layoutHash = runResult.hash;
+      console.log(`Hash generated successfully: ${layoutHash}`);
+    }
+    const payload = await extractWithRetry(attachment, layoutHash, 3);
     if (payload) {
       console.log(`Extraction successful for ${attachment.filename}`);
       const response = await uploadWithRetry(payload, attachment.filename, 3);
