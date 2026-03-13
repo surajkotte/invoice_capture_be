@@ -8,11 +8,12 @@ import { run } from "../util/sceUtil.js";
 import pLimit from "p-limit";
 import PersistentQueue from "../utils/Queue.js";
 import dbManager from "../Connections/sqlconnection.js";
+import logger from "../Connections/Logger.js";
 const limit = pLimit(3);
 let reconnectTimeout;
 let imap;
 function reconnect() {
-  console.log("Reconnecting in 5 seconds...");
+  logger.info("Reconnecting in 5 seconds...");
   clearTimeout(reconnectTimeout);
   reconnectTimeout = setTimeout(() => {
     createAndConnect();
@@ -26,18 +27,18 @@ const createAndConnect = () => {
   imap = new Imap(ImapConfig);
 
   imap.once("ready", () => {
-    console.log("IMAP connected");
+    logger.info("IMAP connected");
 
     openInbox((err, box) => {
       if (err) throw err;
-      console.log(`Inbox opened: ${box.messages.total} messages`);
+      logger.info(`Inbox opened: ${box.messages.total} messages`);
 
       imap.search(["UNSEEN"], (err, results) => {
         if (err) throw err;
         if (!results || results.length === 0) {
-          console.log("No unread mails found.");
+          logger.info("No unread mails found.");
         } else {
-          console.log(`Found ${results.length} unread mail(s).`);
+          logger.info(`Found ${results.length} unread mail(s).`);
 
           const fetch = imap.fetch(results, {
             bodies: "",
@@ -45,7 +46,7 @@ const createAndConnect = () => {
           });
 
           fetch.on("message", (msg, seqno) => {
-            console.log(`Fetching unread message #${seqno}`);
+            logger.info(`Fetching unread message #${seqno}`);
             let emailBuffer = "";
 
             msg.on("body", (stream, info) => {
@@ -56,20 +57,20 @@ const createAndConnect = () => {
 
             msg.once("end", () => {
               simpleParser(emailBuffer, (err, parsed) => {
-                if (err) console.error("Parsing error:", err);
+                if (err) logger.error("Parsing error:", err);
                 else {
-                  console.log("From:", parsed.from.text);
-                  console.log("Subject:", parsed.subject);
-                  console.log("Date:", parsed.date);
-                  console.log("Body:", parsed.text);
+                  logger.info("From:", parsed.from.text);
+                  logger.info("Subject:", parsed.subject);
+                  logger.info("Date:", parsed.date);
+                  logger.info("Body:", parsed.text);
 
                   if (parsed.attachments.length > 0) {
-                    console.log(
+                    logger.info(
                       `Found ${parsed.attachments.length} attachment(s)`,
                     );
                     processAttachments(parsed.attachments);
                   } else {
-                    console.log("No attachments found.");
+                    logger.info("No attachments found.");
                   }
                 }
               });
@@ -77,12 +78,12 @@ const createAndConnect = () => {
           });
 
           fetch.once("end", () => {
-            console.log("Done fetching unread mails.");
+            logger.info("Done fetching unread mails.");
           });
         }
       });
       imap.on("mail", (numNewMsgs) => {
-        console.log(`${numNewMsgs} new message(s) received`);
+        logger.info(`${numNewMsgs} new message(s) received`);
 
         // Fetch the latest message
         const fetch = imap.seq.fetch(
@@ -94,7 +95,7 @@ const createAndConnect = () => {
         );
 
         fetch.on("message", (msg, seqno) => {
-          console.log(`Fetching message #${seqno}`);
+          logger.info(`Fetching message #${seqno}`);
           let emailBuffer = "";
 
           msg.on("body", (stream, info) => {
@@ -106,20 +107,20 @@ const createAndConnect = () => {
           msg.once("end", async () => {
             simpleParser(emailBuffer, async (err, parsed) => {
               if (err) {
-                console.error("Parsing error:", err);
+                logger.error("Parsing error:", err);
               } else {
-                console.log("From:", parsed.from.text);
-                console.log("Subject:", parsed.subject);
-                console.log("Date:", parsed.date);
-                console.log("Body:", parsed.text);
+                logger.info("From:", parsed.from.text);
+                logger.info("Subject:", parsed.subject);
+                logger.info("Date:", parsed.date);
+                logger.info("Body:", parsed.text);
                 if (parsed.attachments.length > 0) {
-                  console.log(
+                  logger.info(
                     `Found ${parsed.attachments.length} attachment(s)`,
                   );
                   //processAttachments(parsed?.attachments);
                   await enqueueAttachments(parsed.attachments);
                 } else {
-                  console.log("No attachments found.");
+                  logger.info("No attachments found.");
                 }
               }
             });
@@ -127,45 +128,45 @@ const createAndConnect = () => {
         });
 
         fetch.once("error", (err) => {
-          console.error("Fetch error:", err);
+          logger.error("Fetch error:", err);
         });
 
         fetch.once("end", () => {
-          console.log("Done fetching new message");
+          logger.info("Done fetching new message");
         });
       });
 
-      console.log("Listening for new mail...");
+      logger.info("Listening for new mail...");
     });
   });
   imap.once("error", (err) => {
-    console.error("IMAP error:", err);
-    console.log("Reconnecting in 5 seconds...");
+    logger.error("IMAP error:", err);
+    logger.info("Reconnecting in 5 seconds...");
     reconnect();
   });
 
   imap.once("end", () => {
-    console.log("Connection ended");
+    logger.info("Connection ended");
     reconnect();
   });
   imap.on("close", (hadError) => {
-    console.log("Connection closed", hadError ? "with error" : "");
+    logger.info("Connection closed", hadError ? "with error" : "");
     reconnect();
   });
   process.on("uncaughtException", (err) => {
-    console.error("Uncaught Exception:", err);
+    logger.error("Uncaught Exception:", err);
   });
   try {
     imap.connect();
-    console.log("connected to mail");
+    logger.info("connected to mail");
   } catch (error) {
-    console.log(error);
+    logger.error("Error connecting to mail:", error);
   }
 };
 
 async function processAttachments(attachments) {
   const validAttachments = attachments.filter(isValidAttachment);
-  console.log(`Processing ${validAttachments.length} valid attachment(s)`);
+  logger.info(`Processing ${validAttachments.length} valid attachment(s)`);
 
   const uploadTasks = validAttachments.map((attachment, index) =>
     limit(() => processAttachment(attachment, index)),
@@ -175,12 +176,12 @@ async function processAttachments(attachments) {
 }
 async function uploadWithRetry(payload, filename, retries = 3) {
   try {
-    console.log(`Uploading ${filename}...`);
+    logger.info(`Uploading ${filename}...`);
     const response = await SQLFile.mail_upload(payload);
     return { messageType: "S", message: `Uploaded ${filename}` };
   } catch (err) {
     if (retries > 0) {
-      console.warn(`Retrying ${filename}, retries left: ${retries}`);
+      logger.warn(`Retrying ${filename}, retries left: ${retries}`);
       await new Promise((res) => setTimeout(res, 1000 * (4 - retries)));
       return uploadWithRetry(payload, filename, retries - 1);
     }
@@ -189,26 +190,26 @@ async function uploadWithRetry(payload, filename, retries = 3) {
 }
 async function extractWithRetry(attachment, layoutHash, retries = 3) {
   try {
-    console.log(`Extracting ${attachment.filename}...`);
+    logger.info(`Extracting ${attachment.filename}...`);
     let prompttext = "";
     const promptresponse = await dbManager.query(
       "SELECT * FROM prompt_data WHERE layout_hash = ?",
       [layoutHash],
     );
-    console.log(promptresponse, "prompt response");
+    logger.info(promptresponse, "prompt response");
     if (promptresponse[0] && promptresponse[0][0]) {
       prompttext = promptresponse[0][0]?.prompts || "";
     }
-    console.log(prompttext, "prompt text");
+    logger.info(prompttext, "prompt text");
     const payload = await SQLFile.extract_image(
       attachment.filename || "unknown",
       attachment.size || 0,
       attachment.contentType || "unknown",
       attachment.content || Buffer.alloc(0),
       attachment.type || "unknown",
-      prompttext
+      prompttext,
     );
-    console.log(payload);
+    logger.info(payload, "extraction payload");
     if (!payload || !payload.payload) {
       throw new Error("Invalid extraction result");
     }
@@ -230,7 +231,7 @@ async function extractWithRetry(attachment, layoutHash, retries = 3) {
 }
 async function enqueueAttachments(attachments) {
   const valid = attachments.filter(isValidAttachment);
-  console.log(`Queuing ${valid.length} valid attachment(s)...`);
+  logger.info(`Queuing ${valid.length} valid attachment(s)...`);
 
   for (const att of valid) {
     const contentBuffer =
@@ -253,28 +254,35 @@ function isValidAttachment(attachment) {
 }
 async function processAttachment(attachment) {
   try {
-    console.log(`Processing ${attachment.filename}...`);
+    logger.info(`Processing ${attachment.filename}...`);
     let layoutHash = null;
     const ext = path.extname(attachment.filename).toLowerCase();
     const tempFilename = `mail-${Date.now()}-${attachment.filename}`;
     let tempFilePath = path.resolve("uploads", tempFilename);
     fs.writeFileSync(tempFilePath, attachment.content);
-    console.log(`Generating layout hash for ${attachment.filename}...`);
+    logger.info(`Generating layout hash for ${attachment.filename}...`);
     const runResult = await run(tempFilename);
     if (runResult && runResult.hash) {
       layoutHash = runResult.hash;
-      console.log(`Hash generated successfully: ${layoutHash}`);
+      logger.info(`Hash generated successfully: ${layoutHash}`);
     }
     const payload = await extractWithRetry(attachment, layoutHash, 3);
     if (payload) {
-      console.log(`Extraction successful for ${attachment.filename}`);
+      logger.info(`Extraction successful for ${attachment.filename}`);
       const response = await uploadWithRetry(payload, attachment.filename, 3);
       return response;
     } else {
-      console.log(`Extraction failed after retries for ${attachment.filename}`);
+      logger.info(`Extraction failed after retries for ${attachment.filename}`);
     }
   } catch (err) {
-    console.error(`Error processing ${attachment.filename}:`, err);
+    logger.error(`Error processing ${attachment.filename}:`, err);
+  } finally {
+    // Clean up temp file if it exists
+    // const tempFilePath = path.resolve("uploads", `mail-${Date.now()}-${attachment.filename}`);
+    // if (fs.existsSync(tempFilePath)) {
+    //   fs.unlinkSync(tempFilePath);
+    //   logger.info(`Cleaned up temp file for ${attachment.filename}`);
+    // }
   }
 }
 const attachmentQueue = new PersistentQueue("./attachmentsQueue.json");

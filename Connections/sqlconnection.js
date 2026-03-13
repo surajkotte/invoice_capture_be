@@ -13,6 +13,5 @@ const config = {
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
 };
-console.log(config);
 const dbManager = new SQLManager(config);
 export default dbManager;

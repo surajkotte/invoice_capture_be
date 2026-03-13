@@ -2,13 +2,10 @@ import fs from "fs";
 import crypto from "crypto";
 import path from "path";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import {
-  fileURLToPath
-} from "url";
+import { fileURLToPath } from "url";
 import { XMLParser } from "fast-xml-parser";
 // Resolve absolute path
-const __filename = fileURLToPath(
-  import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ABSOLUTE path to node_modules/standard_fonts/
@@ -37,7 +34,6 @@ export async function extractLayoutSignature(pdfPath) {
   const sample_text = await extractSampleText(pdfDoc);
   // console.log("Sample Text:", sample_text);
   const supplierName = extractSupplierName(sample_text);
-  console.log("Supplier Name:", supplierName);
 
   let layout = [];
 
@@ -65,7 +61,7 @@ export async function extractLayoutSignature(pdfPath) {
     supplierName,
     sample_text,
     pdfBytes,
-    pdfDoc
+    pdfDoc,
   };
 }
 
@@ -76,7 +72,6 @@ export function generateStructureHash(layoutArray) {
 
 export async function run(pdfPath) {
   try {
-    console.log("Extracting layout signature...");
     const extension = path.extname(pdfPath).toLowerCase();
     if (extension === ".pdf") {
       const {
@@ -85,12 +80,9 @@ export async function run(pdfPath) {
         supplierName,
         sample_text,
         pdfBytes,
-        pdfDoc
-      } =
-      await extractLayoutSignature(`${pdfPath}`);
-      console.log("Layout count:", layout.length);
+        pdfDoc,
+      } = await extractLayoutSignature(`${pdfPath}`);
       const hash = generateStructureHash(layout);
-      console.log("Structure Hash:", hash);
       return {
         hash,
         layout,
@@ -98,10 +90,9 @@ export async function run(pdfPath) {
         supplierName,
         sample_text,
         pdfBytes,
-        pdfDoc
+        pdfDoc,
       };
-    } else if (extension === '.xml') {
-      console.log("Detected XML file. Switching to XML parser...");
+    } else if (extension === ".xml") {
       return await processXmlInvoice(pdfPath);
     }
   } catch (error) {
@@ -116,7 +107,10 @@ async function processXmlInvoice(xmlPath) {
   const jsonObj = parser.parse(xmlData);
 
   // Since there is no visual layout, we create a stable fingerprint of the file content
-  const pdf_fingerprint = crypto.createHash("sha256").update(xmlData).digest("hex");
+  const pdf_fingerprint = crypto
+    .createHash("sha256")
+    .update(xmlData)
+    .digest("hex");
 
   return {
     type: "XML",
@@ -124,7 +118,7 @@ async function processXmlInvoice(xmlPath) {
     pdf_fingerprint,
     // Provide defaults so the rest of your app doesn't crash
     layout: [],
-    hash: pdf_fingerprint
+    hash: pdf_fingerprint,
   };
 }
 export async function extractSampleText(pdfData) {
@@ -143,7 +137,6 @@ function extractSupplierName(text) {
 }
 export async function extractInvoiceUsingTemplate(pdfBytes, fields, pdfDoc) {
   const extracted = {};
-  console.log("in extract invoice using template");
 
   for (const f of fields) {
     const rects = {
@@ -155,7 +148,6 @@ export async function extractInvoiceUsingTemplate(pdfBytes, fields, pdfDoc) {
     const text = await extractTextByRect(pdfDoc, f.page_number, rects);
     extracted[f.field_label] = text || "";
   }
-  console.log("Extracted Fields:", extracted);
   return extracted;
 }
 
@@ -213,16 +205,16 @@ function overlapRatio(a, b) {
 
 //     // Accurate Dimensions
 //     // Width: usually provided by PDF.js, or estimate fallback
-//     const itemWidth = item.width || (item.str.length * (tx[0] * 0.5)); 
+//     const itemWidth = item.width || (item.str.length * (tx[0] * 0.5));
 //     // Height: Use the Y-scale from transform matrix (index 3)
-//     const itemHeight = Math.abs(tx[3]); 
+//     const itemHeight = Math.abs(tx[3]);
 
 //     // Calculate the CENTER point of the text item
 //     const centerX = x + (itemWidth / 2);
 //     const centerY = y + (itemHeight / 2);
 //     // 5. Check if CENTER of text is INSIDE the selection box
 //     // This is much safer than "edges overlap" which grabs neighbors
-//     const isInside = 
+//     const isInside =
 //       centerX >= selectionBox.xMin &&
 //       centerX <= selectionBox.xMax &&
 //       centerY >= selectionBox.yMin &&
@@ -247,7 +239,7 @@ function overlapRatio(a, b) {
 export async function extractTextByRect(pdfDoc, pageNum, rect) {
   const page = await pdfDoc.getPage(pageNum);
   const viewport = page.getViewport({
-    scale: 1
+    scale: 1,
   });
 
   // Convert normalized → absolute PDF coords
@@ -277,7 +269,7 @@ export async function extractTextByRect(pdfDoc, pageNum, rect) {
       hits.push({
         str: item.str,
         x,
-        y
+        y,
       });
     }
   }
@@ -288,5 +280,8 @@ export async function extractTextByRect(pdfDoc, pageNum, rect) {
     return a.x - b.x;
   });
 
-  return hits.map(h => h.str).join(" ").trim();
+  return hits
+    .map((h) => h.str)
+    .join(" ")
+    .trim();
 }

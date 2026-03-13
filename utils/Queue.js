@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
-
+import logger from "../Connections/Logger.js";
 class PersistentQueue {
   constructor(
     queuePath = "./attachmentsQueue.json",
@@ -22,7 +22,7 @@ class PersistentQueue {
       if (!data.trim()) return [];
       return JSON.parse(data);
     } catch (err) {
-      console.warn(`Queue file corrupted: ${filePath}. Resetting...`, err);
+      logger.warn(`Queue file corrupted: ${filePath}. Resetting...`, err);
       return [];
     }
   }
@@ -64,7 +64,7 @@ class PersistentQueue {
 
     this.queue.push(msg);
     //this._saveToFile(this.queuePath, this.queue);
-    console.log(`Enqueued: ${msg.filename}`);
+    logger.info(`Enqueued: ${msg.filename}`);
     return msg.id;
   }
 
@@ -123,11 +123,11 @@ class PersistentQueue {
 
   startProcessing(processFn, intervalMs = 10000) {
     if (this.intervalId) {
-      console.log(" Queue processor already running.");
+      logger.info(" Queue processor already running.");
       return;
     }
 
-    console.log(`Queue processor started (interval: ${intervalMs / 1000}s)`);
+    logger.info(`Queue processor started (interval: ${intervalMs / 1000}s)`);
 
     this.intervalId = setInterval(async () => {
       if (this.isProcessing || this.isEmpty()) {
@@ -137,12 +137,12 @@ class PersistentQueue {
 
       try {
         const msg = this.peek();
-        console.log(`Queue size: ${this.size()}`);
-        console.log(`Next item: ${msg?.filename || "None"}`);
+        logger.info(`Queue size: ${this.size()}`);
+        logger.info(`Next item: ${msg?.filename || "None"}`);
         if (!msg) return;
 
         this.markStatus(msg.id, "processing");
-        console.log(` Processing: ${msg.filename}`);
+        logger.info(`Processing: ${msg.filename}`);
 
         const contentBuffer =
           typeof msg.content === "string"
@@ -170,7 +170,7 @@ class PersistentQueue {
       clearInterval(this.intervalId);
       this.intervalId = null;
       this.isProcessing = false;
-      console.log("Queue processor stopped");
+      logger.info("Queue processor stopped");
     }
   }
 }

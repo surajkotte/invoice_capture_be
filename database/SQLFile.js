@@ -18,6 +18,7 @@ import {
   extractLayoutSignature,
   run,
 } from "../util/sceUtil.js";
+import logger from "../Connections/Logger.js";
 import crypto from "crypto";
 const agent = new Agent({ rejectUnauthorized: false });
 dotenv.config();
@@ -50,16 +51,18 @@ export const SQLFile = {
           res.cookie("token", token);
         }
       } else {
+        logger.warn("User already exists");
         throw new Error("User already exist");
       }
+      logger.info("User signed up successfully:", user_Info.username);
       res.json({ messageType: "S", data: [] });
     } catch (error) {
+      logger.error("Signup error:", error);
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
   async insert(req, res) {
     const { table, data, delFlag } = req.body;
-    console.log(delFlag);
     try {
       const response = await dbManager.insert(
         table,
@@ -68,11 +71,14 @@ export const SQLFile = {
         delFlag === "X" ? true : false,
       );
       if (response[0]) {
+        logger.info("Data inserted successfully", data);
         res.json({ messageType: "S", data: response });
       } else {
+        logger.warn("Insert operation did not affect any rows", data);
         throw new Error("Save Failed");
       }
     } catch (error) {
+      logger.error("Insert error:", error);
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
@@ -87,9 +93,8 @@ export const SQLFile = {
         const user = response[0][0];
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (isPasswordValid) {
-          console.log("Password valid for user:", user.username);
+          logger.info("Password valid for user:", user.username);
           const csrfToken = crypto.randomBytes(32).toString("hex");
-          console.log("Generated CSRF token:", csrfToken);
           const token = JWT.sign(
             { id: user.id, csrfToken: csrfToken },
             process.env.DECODE_SECRETE,
@@ -103,22 +108,25 @@ export const SQLFile = {
             sameSite: "strict",
             maxAge: 2 * 60 * 60 * 1000,
           });
+          logger.info("User logged in successfully:", user.username);
           res.json({
             messageType: "S",
             data: { username: user.username, csrfToken: csrfToken },
           });
         } else {
+          logger.warn("Invalid password attempt for user:", user.username);
           res
             .status(401)
             .json({ messageType: "E", message: "Invalid credentials" });
         }
       } else {
+        logger.warn("Login attempt failed", { email });
         res
           .status(401)
           .json({ messageType: "E", message: "Invalid credentials" });
       }
     } catch (error) {
-      console.error("Login error:", error);
+      logger.error("Login error:", error);
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
@@ -185,7 +193,10 @@ export const SQLFile = {
       const password = process.env.SYSTEM_PASSWORD;
       const results = await Promise.all(
         dbresponse[0].map(async (systemInfo) => {
-          console.log(systemInfo);
+          logger.info("Checking connection for system:", {
+            system_domain: systemInfo.system_domain,
+            system_port: systemInfo.system_port,
+          });
           const { system_domain: domain, system_port: port } = systemInfo;
           let connectionStatus = "error";
 
@@ -301,10 +312,10 @@ export const SQLFile = {
         "select * from system_config where id = ?",
         [id],
       );
-      console.log("in delete system config", response);
+      logger.info("in delete system config", response);
       if (response[0][0]) {
         const response1 = await dbManager.delete("system_config", { id: id });
-        console.log("in delete system config response1", response1);
+        logger.info("in delete system config response1", response1);
         if (response1 && response1[0]) {
           return res.status(200).json({ messageType: "S", data: response1[0] });
         } else {
@@ -329,6 +340,7 @@ export const SQLFile = {
       );
 
       if (!dbresponse[0] || dbresponse[0].length === 0) {
+        logger.warn("System not found for ID:", id);
         throw new Error("System not found. Please save first");
       }
 
@@ -360,12 +372,21 @@ export const SQLFile = {
 
             if (response?.status === 200) {
               connectionStatus = "active";
+              logger.info("Connection check successful for system:", {
+                domain,
+                port,
+              });
               return res.status(200).json({
                 messageType: "S",
                 data: { ...dbresponse[0][0], connectionStatus },
               });
             }
           } catch (err) {
+            logger.warn("Connection check failed for system:", {
+              domain,
+              port,
+              error: err.message,
+            });
             // token invalid → delete + fetch new
             await SQLFile.delete_data("token_table", {
               session_id: req.tokenid,
@@ -386,6 +407,10 @@ export const SQLFile = {
         });
 
         if (tokenResponse.status === 200) {
+          logger.info(
+            "New token fetched successfully for system in check_connection:",
+            { domain, port },
+          );
           const csrfToken = tokenResponse.headers["x-csrf-token"];
           const cookies = tokenResponse.headers["set-cookie"]?.join("; ") || "";
 
@@ -401,14 +426,22 @@ export const SQLFile = {
           connectionStatus = "active";
         }
       } catch (err) {
+        logger.error(
+          "Error during connection check for system in check_connection:",
+          { domain, port, error: err.message },
+        );
         connectionStatus = "error";
       }
-
+      logger.info(
+        "Connection check completed for system in check_connection:",
+        { domain, port, connectionStatus },
+      );
       return res.status(200).json({
         messageType: "S",
         data: { ...dbresponse[0][0], connectionStatus },
       });
     } catch (error) {
+      logger.error("Error in check_connection:", error);
       return res.status(500).json({ messageType: "E", message: error.message });
     }
   },
@@ -427,17 +460,20 @@ export const SQLFile = {
         response2[0]?.map((info) => {
           return info?.field_label;
         }) || [];
+      logger.info("Fetched header and item fields successfully", {
+        Header_Fields,
+        Item_Fields,
+      });
       res.json({ messageType: "S", data: { Header_Fields, Item_Fields } });
     } catch (error) {
-      res.status(500).json({ messageType: "E", meessage: error.message });
+      logger.error("Error fetching fields:", error);
+      res.status(500).json({ messageType: "E", message: error.message });
     }
   },
   async upload(req, res) {
     try {
       const file_path = req.file.path;
       const { layoutHash } = req.body;
-      console.log("layout hash in upload:", layoutHash);
-      console.log(req.file);
       const ext = path.extname(req.file.originalname).toLowerCase();
       let mediaType;
       let base64DataArray = [];
@@ -498,11 +534,11 @@ export const SQLFile = {
         "SELECT * FROM prompt_data WHERE layout_hash = ?",
         [layoutHash],
       );
-      console.log(promptresponse, "prompt response");
+      logger.log("prompt response", promptresponse);
       if (promptresponse[0] && promptresponse[0][0]) {
         prompttext = promptresponse[0][0]?.prompts || "";
       }
-      console.log(prompttext, "prompt text");
+      logger.info("prompt text", prompttext);
       const response1 = await dbManager.query(
         "SELECT * FROM Header_Fields",
         [],
@@ -512,7 +548,8 @@ export const SQLFile = {
       const Header_Fields =
         response1[0]?.map((info) => info?.field_label) || [];
       const Item_Fields = response2[0]?.map((info) => info?.field_label) || [];
-      console.log("Sending", base64DataArray.length, "pages to Claude...");
+      logger.info("Sending", base64DataArray.length, "pages to Claude...");
+      logger.info("ext type in upload:", ext);
       const fileBuffer = fs.readFileSync(file_path);
       // const base64Data = fileBuffer.toString("base64");
       let rawText = "";
@@ -636,6 +673,10 @@ Follow these rules strictly:
 - ${prompttext}
 `;
       const startTime = Date.now();
+      logger.info(
+        "Sending content to Claude for extraction with system prompt",
+        { system_prompt, fileName: req.file.filename },
+      );
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
@@ -643,6 +684,7 @@ Follow these rules strictly:
         system: system_prompt,
         messages: [{ role: "user", content: contentBlocks }],
       });
+      logger.info("Received response from Claude");
       const processingTimeMs = Date.now() - startTime;
       const inputTokens = response.usage?.input_tokens || 0;
       const outputTokens = response.usage?.output_tokens || 0;
@@ -658,6 +700,14 @@ Follow these rules strictly:
       //   });
       // }
       const session_doc_id = uuidv4();
+      logger.info("Logging LLM usage for document extraction", {
+        model: "claude-sonnet-4-20250514",
+        processingTimeMs,
+      });
+      logger.info("extraction successful for file", {
+        fileName: req.file.filename,
+        session_doc_id,
+      });
       logLLMUsage(dbManager, {
         response,
         model: "claude-sonnet-4-20250514",
@@ -687,22 +737,22 @@ Follow these rules strictly:
         },
       });
     } catch (error) {
-      console.error("Error uploading document:", error);
+      logger.error("Error uploading document:", error);
       res.status(500).json({ error: "Failed to upload document" });
     }
   },
   async submit(req, res) {
     const { data, domain, port, layoutHash, sceTemplate } = req.body;
-    console.log(layoutHash, "layout hash in sqlfile");
+  
     const tokenid = req.tokenid;
     const token = req.cookies.token;
     try {
-      console.log("in submit");
+      logger.info("in submit");
       const query = "SELECT * FROM users WHERE id = ?";
       const user = await dbManager.query(query, [tokenid]);
       const userName = user[0][0]?.username || "";
       if (sceTemplate && false) {
-        console.log("in sce template" + sceTemplate);
+        logger.info("in sce template" + sceTemplate);
         const sceHash = await dbManager.query(
           "SELECT * FROM invoice_templates WHERE layout_hash = ?",
           [layoutHash],
@@ -800,11 +850,11 @@ Follow these rules strictly:
         const fieldKey = field.Field_name;
         if (data.headerData && data.headerData[fieldKey]) {
           const fieldValue = data.headerData[fieldKey];
-          console.log("field value before date formatting:", fieldValue);
+          logger.info("Field value before date formatting:", fieldValue);
           const parts = fieldValue.split("/");
           const date = new Date(parts[2], parts[1] - 1, parts[0]);
 
-          console.log("parsed date:", date);
+          logger.info("Parsed date:", date);
 
           if (!isNaN(date.getTime())) {
             // Use .getTime() for a more robust check
@@ -835,7 +885,7 @@ Follow these rules strictly:
           httpsAgent: agent,
           data: JSON.stringify(payload),
         });
-        console.log("Post response status:", postResponse.status);
+        logger.info("Post response status:", postResponse.status);
         if (postResponse.status === 201) {
           const payloadStr = postResponse?.data?.d?.payload;
           let payload = {};
@@ -888,22 +938,40 @@ Follow these rules strictly:
               ["id"],
               false,
             );
+            logger.info(
+              "Data submitted and logged successfully for document ID:",
+              {
+                session_doc_id: data?.log_data?.session_doc_id,
+                document_id: regid,
+                file_name: fileName,
+                file_type: fileType,
+                created_user: userName,
+              },
+            );
             res.json({ messageType: "S", data: post_data });
           } else {
+            logger.error(
+              "Failed to insert registration data into database for document ID:",
+              regid,
+            );
             throw new Error("Failed to submit data");
           }
         } else {
-          console.log(
-            "Failed to submit data:",
-            postResponse.status,
-            postResponse.data,
-          );
+          logger.info("Failed to submit data:", {
+            status: postResponse.status,
+            data: postResponse.data,
+          });
           throw new Error("Failed to submit data");
         }
       } else {
+        logger.warn(
+          "No valid session found for user during submit operation. Session may have expired.",
+          { token, domain, port },
+        );
         throw new Error(" Session expired. Please log in again.");
       }
     } catch (error) {
+      logger.error("Error in submit operation:", error);
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
@@ -918,7 +986,7 @@ Follow these rules strictly:
       ? new Date(filters.dateRange.to)
       : null;
     const documentType = filters?.documentType || "";
-    console.log(filters, "filters in get registration data");
+    logger.info("Filters in get registration data:", filters);
     const itemsPerPage = 20;
     const offSet = (pageNumber - 1) * itemsPerPage;
     let whereConditions = [];
@@ -962,17 +1030,26 @@ Follow these rules strictly:
         dataParams,
       );
       const totCount = countResponse[0]?.[0]?.count;
-      console.log(totCount);
+      logger.info("Total registration data count:", totCount);
       const data_response = {
         data: response[0],
         totalCount: totCount,
       };
       if (response) {
+        logger.info("Fetched registration data successfully with filters", {
+          filters,
+          totalCount: totCount,
+        });
         res.json({ messageType: "S", data: data_response });
       } else {
+        logger.warn("Failed to fetch registration data with provided filters", {
+          filters,
+          error: "No data returned from database",
+        });
         throw new Error("Fetch Failed");
       }
     } catch (error) {
+      logger.error("Error fetching registration data:", error);
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
@@ -1051,19 +1128,19 @@ Follow these rules strictly:
         default:
           return res.status(400).json({ error: "Unsupported file type" });
       }
-      console.log(layoutHash, "layout hash in upload prompt");
+      logger.info("Layout hash in upload prompt:", layoutHash);
       const promptsdata = await dbManager.query(
         "SELECT * FROM prompt_data WHERE layout_hash = ?",
         [layoutHash],
       );
-      console.log(promptsdata, "promptsdata");
+      logger.info("Prompts data fetched:", promptsdata);
       let promptText = "";
       if (promptsdata[0] && promptsdata[0][0]) {
         promptText = promptsdata[0][0]?.prompts || "";
       }
       promptText += "\n" + prompt;
-      console.log(prompt, "prompt from request");
-      console.log(promptText, "final prompt text");
+      logger.info("Prompt from request:", prompt);
+      logger.info("Final prompt text:", promptText);
       const response1 = await dbManager.query(
         "SELECT * FROM Header_Fields",
         [],
@@ -1080,6 +1157,13 @@ Follow these rules strictly:
       const base64Data = req.body.base64file;
       const modelToUse = "claude-sonnet-4-20250514"; // Keeping your original model
       let contentBlocks = [];
+      logger.log(
+        "Preparing content blocks for Claude with uploaded prompt and file",
+        {
+          promptText,
+          fileType: ext,
+        },
+      );
       if (ext === ".xml" || ext === ".txt") {
         let rawText = base64Data;
         contentBlocks.push({
@@ -1097,7 +1181,7 @@ Follow these rules strictly:
           },
         });
       }
-      console.log("Content blocks prepared for Claude:", contentBlocks);
+      logger.info("Content blocks prepared for Claude:", contentBlocks);
       //       const response = await anthropic.messages.create({
       //         model: modelToUse,
       //         max_tokens: 20000,
@@ -1199,6 +1283,10 @@ Follow these rules strictly:
 - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 `;
       const startTime = Date.now();
+      logger.info(
+        "Sending content to Claude for extraction with uploaded prompt and file",
+        { system_prompt, fileName: req.body.filename },
+      );
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
@@ -1206,6 +1294,7 @@ Follow these rules strictly:
         system: system_prompt,
         messages: [{ role: "user", content: contentBlocks }],
       });
+      logger.info("Received response from Claude for uploaded prompt and file");
       const extractedText = response.content[0].text;
       const processingTimeMs = Date.now() - startTime;
       const jsonMatch = extractedText.match(/```json([\s\S]*?)```/);
@@ -1220,6 +1309,10 @@ Follow these rules strictly:
         userName: req.user?.username || "promptSystem",
         sessionDocId: req?.body?.session_id,
       });
+      logger.info("Extraction successful for uploaded prompt and file", {
+        fileName: req.body.filename,
+        sessionDocId: req?.body?.session_id,
+      });
       res.json({
         messageType: "S",
         data: jsonObject,
@@ -1229,7 +1322,7 @@ Follow these rules strictly:
         fileSize: req.body?.filesize,
       });
     } catch (error) {
-      console.error("Error uploading document:", error);
+      logger.error("Error in uploadPrompt:", error);
       res.status(500).json({ error: "Failed to upload document" });
     }
   },
@@ -1239,9 +1332,9 @@ Follow these rules strictly:
     const session_doc_id = req.body.session_doc_id;
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    console.log(__dirname);
+    logger.info("Directory name:", __dirname);
     const filePath = path.join(__dirname, "..", "uploads", filename);
-    console.log(filePath);
+    logger.info("File path:", filePath);
 
     try {
       if (!fs.existsSync(filePath)) {
@@ -1251,7 +1344,10 @@ Follow these rules strictly:
       const base64Data = fileBuffer.toString("base64");
       const ext = path.extname(filePath).toLowerCase();
       let mediaType;
-
+      logger.info("Received chat prompt request with file and message", {
+        filename,
+        message,
+      });
       switch (ext) {
         case ".pdf":
           mediaType = "application/pdf";
@@ -1293,14 +1389,25 @@ Follow these rules strictly:
         text: `Answer the question based on the provided content. ${message}`,
       });
       const startTime = Date.now();
+      logger.info("Sending chat prompt to Claude with file content", {
+        filename,
+        message,
+      });
       const response = await anthropic.messages.create({
         model: modelToUse,
         max_tokens: 20000,
         temperature: 1,
         messages: [{ role: "user", content: contentBlocks }],
       });
+      logger.info(
+        "Received response from Claude for chat prompt with file content",
+        {
+          filename,
+          message,
+        },
+      );
       const processingTimeMs = Date.now() - startTime;
-      console.log(response);
+      logger.info("Claude response:", response);
       const extractedText = response.content[0].text;
       await logLLMUsage(dbManager, {
         response: response,
@@ -1312,19 +1419,29 @@ Follow these rules strictly:
         userName: req.user?.username || "chatSystem",
         sessionDocId: session_doc_id,
       });
+      logger.info("Chat prompt processing successful for file", {
+        filename,
+        sessionDocId: session_doc_id,
+      });
       res.status(200).json({ messageType: "S", data: extractedText });
     } catch (error) {
+      logger.error("Error in chat prompt:", error);
       res.status(500).json({ messageType: "E", message: error.message });
     }
   },
   async extract_image(filename, size, contentType, content, type, prompt) {
     try {
       let mediaType;
+      logger.info("Received extract image request", {
+        filename,
+        size,
+        contentType,
+      });
       switch (contentType) {
         case "application/pdf":
           mediaType = "application/pdf";
           break;
-        case ".xml":
+        case "text/xml":
           mediaType = "application/xml";
           break;
         case ".txt":
@@ -1335,15 +1452,19 @@ Follow these rules strictly:
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
           break;
         default:
-          return res.status(400).json({ error: "Unsupported file type" });
+          throw new Error({ error: "Unsupported file type" });
       }
       let contentBlocks = [];
       let rawText = "";
-      if (contentType === "application/xml" || contentType === "text/plain") {
+      if (
+        contentType === "application/xml" ||
+        contentType === "text/xml" ||
+        contentType === "text/plain"
+      ) {
         rawText = content.toString("utf-8");
         contentBlocks.push({
           type: "text",
-          text: `Here is the source ${ext.toUpperCase()} content:\n\n${rawText}`,
+          text: `Here is the source ${filename.toUpperCase()} content:\n\n${rawText}`,
         });
       } else {
         //for pdf files
@@ -1370,7 +1491,7 @@ Follow these rules strictly:
           return info?.field_label;
         }) || [];
       const base64Data = content.toString("base64");
-      console.log(type);
+      logger.info("File type:", type);
       let system_prompt = `
 Place all header-related fields inside an object named "header_fields" using the exact field names defined in ${Header_Fields}.  
 Place all item-related fields inside an array named "item_fields" using the exact field names defined in ${Item_Fields}.  
@@ -1398,12 +1519,20 @@ Follow these rules strictly:
 - ${prompt}
 `;
       const startTime = Date.now();
+      logger.info("Sending content to Claude for extract_image prompt", {
+        filename,
+        prompt,
+      });
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
         temperature: 1,
         system: system_prompt,
         messages: [{ role: "user", content: contentBlocks }],
+      });
+      logger.info("Received response from Claude for extract_image prompt", {
+        filename,
+        prompt,
       });
       const processingTimeMs = Date.now() - startTime;
       const extractedText = response.content[0].text;
@@ -1427,6 +1556,13 @@ Follow these rules strictly:
         }, {});
       });
       let session_doc_id = uuidv4();
+      logger.info(
+        "Data extraction and normalization successful for extract_image prompt",
+        {
+          filename,
+          sessionDocId: session_doc_id,
+        },
+      );
       const payload = {
         Id: "1",
         session_doc_id: session_doc_id,
@@ -1456,6 +1592,7 @@ Follow these rules strictly:
       });
       return payload;
     } catch (error) {
+      logger.error("Error in extract_image:", error);
       throw error;
     }
   },
@@ -1465,7 +1602,7 @@ Follow these rules strictly:
         "SELECT csrf_token, cookie, updated_at FROM mail_auth where user = ?",
         [process.env.SYSTEM_USER],
       );
-      console.log(mailauthRes, "mail auth response");
+      logger.info("Mail auth response:", mailauthRes);
       let csrf_token = mailauthRes[0][0]?.csrf_token || "";
       let cookie = mailauthRes[0][0]?.cookie || "";
       let timeLimit = mailauthRes[0][0]?.updated_at || "";
@@ -1473,7 +1610,7 @@ Follow these rules strictly:
         "select * from system_config where is_default = ?",
         [1],
       );
-      console.log(system_info, "system info");
+      logger.info("System info:", system_info);
       const domain = system_info[0][0]?.system_domain;
       const port = system_info[0][0]?.system_port;
       if (!domain || !port) {
@@ -1509,7 +1646,7 @@ Follow these rules strictly:
             time: timeString,
           });
           if (updateRes) {
-            console.log(updateRes);
+            logger.info("Mail auth updated:", updateRes);
           }
         }
       }
@@ -1552,14 +1689,17 @@ Follow these rules strictly:
           system_name: domain,
           created_date: new Date(),
         };
-        console.log(post_data);
+        logger.info("Post data for registration:", post_data);
         const db_response = await dbManager.insert(
           "registration_data",
           post_data,
           ["id"],
           false,
         );
-        console.log(payload, "payload received from mail upload");
+        logger.info("Payload received from mail upload", {
+          filename: fileName,
+          sessionDocId: payload?.session_doc_id,
+        });
         await logLLMUsage(dbManager, {
           response: payload?.model_response,
           documentId: regid,
@@ -1574,13 +1714,21 @@ Follow these rules strictly:
         if (db_response) {
           return db_response;
         } else {
+          logger.error("Failed to submit mail upload data to database", {
+            filename: fileName,
+            sessionDocId: payload?.session_doc_id,
+          });
           throw new Error("Failed to submit data");
         }
       } else {
+        logger.error("Failed to connect to server for mail upload", {
+          status: postResponse.status,
+          statusText: postResponse.statusText,
+        });
         throw new Error("Not able to connect to server");
       }
     } catch (error) {
-      console.error("Error in mail upload:", error);
+      logger.error("Error in mail upload:", error);
       throw error;
     }
   },
@@ -1610,8 +1758,16 @@ Follow these rules strictly:
           { layout_hash: layoutHash },
         );
         if (response) {
+          logger.info("Prompt data updated successfully", {
+            filename,
+            layoutHash,
+          });
           res.json({ messageType: "S", data: response });
         } else {
+          logger.error("Failed to update prompt data in database", {
+            filename,
+            layoutHash,
+          });
           throw new Error("Failed to update prompt data");
         }
       } else {
@@ -1620,12 +1776,21 @@ Follow these rules strictly:
           prompts: JSON.stringify([prompt]), // Notice the brackets [ ]
         });
         if (response) {
+          logger.info("Prompt data inserted successfully", {
+            filename,
+            layoutHash,
+          });
           res.json({ messageType: "S", data: response });
         } else {
+          logger.error("Failed to insert prompt data into database", {
+            filename,
+            layoutHash,
+          });
           throw new Error("Failed to insert prompt data");
         }
       }
     } catch (error) {
+      logger.error("Error in savePromptData:", error);
       res.status(500).json({ messageType: "E", meessage: error.message });
     }
   },
@@ -1650,8 +1815,13 @@ Follow these rules strictly:
         totalCount: totCount,
         total_cost: total_cost[0]?.[0]?.total || 0,
       };
+      logger.info("API logs retrieved successfully", {
+        pageNumber,
+        itemsPerPage,
+      });
       res.json({ messageType: "S", data: data_response });
     } catch (error) {
+      logger.error("Error in getApiLogs:", error);
       res.status(500).json({ messageType: "E", message: error.message });
     }
   },
@@ -1792,7 +1962,6 @@ async function convertPdfToOptimizedBase64(pdfPath) {
     const outputPath = path.join(tempDir, file);
     let imageBuffer;
     try {
-      console.log(`Processing ${file}...`);
       // Read the original PNG file
       imageBuffer = await fs.promises.readFile(outputPath);
       // Enhance the image using the CV processing endpoint first
@@ -1825,7 +1994,7 @@ async function enhanceImageBuffer(imageBuffer, filename) {
     throw new Error("Image buffer is empty or null.");
   }
 
-  console.log(
+  logger.info(
     `Sending ${filename} (${(imageBuffer.length / 1024).toFixed(
       2,
     )} KB) for CV enhancement...`,

@@ -11,6 +11,7 @@ import post_router from "./Routes/post_routes.js";
 import get_router from "./Routes/get_routes.js";
 import dbManager from "./Connections/sqlconnection.js";
 import "./database/Mail.js";
+import logger from "./Connections/Logger.js";
 app.use(
   cors({
     origin: "http://localhost:5173",
@@ -35,12 +36,12 @@ app.use("/files", express.static(path.join(__dirname, "uploads")));
 (async () => {
   try {
     await dbManager.connect();
-    console.log("Database connection successful. Starting server...");
+    logger.info("Database connection successful. Starting server...");
     app.listen(5000, () => {
-      console.log("listening to server 3000");
+      logger.info("listening to server 3000");
     });
   } catch (error) {
-    console.error(
+    logger.error(
       "Failed to connect to the database. Server not started.",
       error
     );

@@ -67,8 +67,6 @@ class SQLManager {
         const result = await this.query(sql, flatValues);
         return result;
       } catch (error) {
-        console.log('in error')
-        console.log(error + ' in insert' + table);
         throw error;
       }
     }

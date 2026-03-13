@@ -105,7 +105,6 @@ post_router.post(
 post_router.post(
   "/login",
   (req, res, next) => {
-    console.log("here");
     next();
   },
   SQLFile.login,
@@ -200,8 +199,6 @@ post_router.post(
   "/prompt",
   connectionCheck,
   async (req, res, next) => {
-    console.log("in prompt");
-    console.log(req);
     const filename = req.body.filename;
     const { hash } = await run(filename);
     req.body.layoutHash = hash;

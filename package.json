@@ -36,6 +36,8 @@
     "pdfjs-dist": "^5.3.93",
     "sharp": "^0.34.4",
     "tesseract.js": "^6.0.1",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
   }
 }

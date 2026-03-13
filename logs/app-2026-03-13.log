@@ -1,0 +1,276 @@
+[2026-03-13 14:02:51] INFO: Password valid for user:
+[2026-03-13 14:10:31] WARN: Invalid password attempt for user:
+[2026-03-13 15:46:52] WARN: Invalid password attempt for user:
+[2026-03-13 15:47:07] INFO: Password valid for user:
+[2026-03-13 15:47:07] INFO: User logged in successfully:
+[2026-03-13 15:47:07] INFO: Fetched registration data successfully with filters
+[2026-03-13 15:47:07] INFO: Fetched registration data successfully with filters
+[2026-03-13 15:47:08] INFO: Fetched registration data successfully with filters
+[2026-03-13 15:48:51] INFO: Received extract image request
+[2026-03-13 15:48:51] INFO: Received extract image request
+[2026-03-13 15:48:51] INFO: Received extract image request
+[2026-03-13 15:48:51] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:48:51] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:48:51] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:48:57] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:48:57] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:48:57] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:48:57] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:48:57] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:48:57] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:48:58] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:48:58] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:00] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:00] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:03] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:03] INFO: Received extract image request
+[2026-03-13 15:49:03] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:49:03] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:04] INFO: Received extract image request
+[2026-03-13 15:49:04] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:49:09] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:49:09] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:49:09] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:11] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:13] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:14] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:49:14] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:49:14] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:15] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:16] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:16] INFO: Received extract image request
+[2026-03-13 15:49:16] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:49:17] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:19] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:49:19] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:49:19] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:20] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:20] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:22] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:25] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:27] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:49:27] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:49:27] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:28] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:30] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:49:33] ERROR: Error in mail upload: getaddrinfo ENOTFOUND mu2r3d53.otxlab.net
+[2026-03-13 15:53:03] INFO: Received extract image request
+[2026-03-13 15:53:03] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:53:13] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:53:13] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:53:16] INFO: Payload received from mail upload
+[2026-03-13 15:53:17] INFO: Received extract image request
+[2026-03-13 15:53:17] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:53:27] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:53:27] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:53:29] INFO: Payload received from mail upload
+[2026-03-13 15:53:32] INFO: Received extract image request
+[2026-03-13 15:53:32] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:53:38] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:53:38] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:53:41] INFO: Payload received from mail upload
+[2026-03-13 15:53:43] INFO: Received extract image request
+[2026-03-13 15:53:43] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:53:49] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:53:49] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:53:51] INFO: Payload received from mail upload
+[2026-03-13 15:53:52] INFO: Received extract image request
+[2026-03-13 15:53:52] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:54:07] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:54:07] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:54:09] INFO: Payload received from mail upload
+[2026-03-13 15:54:12] INFO: Received extract image request
+[2026-03-13 15:54:12] INFO: Sending content to Claude for extract_image prompt
+[2026-03-13 15:54:18] INFO: Received response from Claude for extract_image prompt
+[2026-03-13 15:54:18] INFO: Data extraction and normalization successful for extract_image prompt
+[2026-03-13 15:54:19] INFO: Payload received from mail upload
+[2026-03-13 15:55:48] INFO: API logs retrieved successfully
+[2026-03-13 15:55:48] INFO: API logs retrieved successfully
+[2026-03-13 16:07:35] INFO: API logs retrieved successfully
+[2026-03-13 16:07:35] INFO: API logs retrieved successfully
+[2026-03-13 16:07:48] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:07:48] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:07:48] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:07:49] INFO: API logs retrieved successfully
+[2026-03-13 16:07:49] INFO: API logs retrieved successfully
+[2026-03-13 16:08:10] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:08:10] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:08:11] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:08:11] INFO: API logs retrieved successfully
+[2026-03-13 16:08:11] INFO: API logs retrieved successfully
+[2026-03-13 16:08:59] INFO: API logs retrieved successfully
+[2026-03-13 16:08:59] INFO: API logs retrieved successfully
+[2026-03-13 16:09:01] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:09:01] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:09:01] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:09:03] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:09:05] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:09:07] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:09:08] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:12:19] INFO: connected to mail
+[2026-03-13 16:12:19] ERROR: Uncaught Exception: logger is not defined
+[2026-03-13 16:12:21] INFO: IMAP connected
+[2026-03-13 16:12:21] INFO: Inbox opened: 86 messages
+[2026-03-13 16:12:21] INFO: Listening for new mail...
+[2026-03-13 16:12:21] INFO: No unread mails found.
+[2026-03-13 16:12:47] INFO: connected to mail
+[2026-03-13 16:12:47] ERROR: Uncaught Exception: logger is not defined
+[2026-03-13 16:12:49] INFO: IMAP connected
+[2026-03-13 16:12:49] INFO: Inbox opened: 86 messages
+[2026-03-13 16:12:49] INFO: Listening for new mail...
+[2026-03-13 16:12:49] INFO: No unread mails found.
+[2026-03-13 16:15:06] INFO: connected to mail
+[2026-03-13 16:15:06] ERROR: Uncaught Exception: logger is not defined
+[2026-03-13 16:15:09] INFO: IMAP connected
+[2026-03-13 16:15:10] INFO: Inbox opened: 86 messages
+[2026-03-13 16:15:10] INFO: Listening for new mail...
+[2026-03-13 16:15:11] INFO: No unread mails found.
+[2026-03-13 16:15:27] INFO: connected to mail
+[2026-03-13 16:15:27] INFO: Database connection successful. Starting server...
+[2026-03-13 16:15:27] INFO: listening to server 3000
+[2026-03-13 16:15:29] INFO: IMAP connected
+[2026-03-13 16:15:29] INFO: Inbox opened: 86 messages
+[2026-03-13 16:15:29] INFO: Listening for new mail...
+[2026-03-13 16:15:29] INFO: No unread mails found.
+[2026-03-13 16:15:44] INFO: connected to mail
+[2026-03-13 16:15:44] INFO: Database connection successful. Starting server...
+[2026-03-13 16:15:44] INFO: listening to server 3000
+[2026-03-13 16:15:46] INFO: IMAP connected
+[2026-03-13 16:15:47] INFO: Inbox opened: 86 messages
+[2026-03-13 16:15:47] INFO: Listening for new mail...
+[2026-03-13 16:15:48] INFO: No unread mails found.
+[2026-03-13 16:16:20] INFO: connected to mail
+[2026-03-13 16:16:20] INFO: Database connection successful. Starting server...
+[2026-03-13 16:16:20] INFO: listening to server 3000
+[2026-03-13 16:16:23] INFO: IMAP connected
+[2026-03-13 16:16:23] INFO: Inbox opened: 86 messages
+[2026-03-13 16:16:23] INFO: Listening for new mail...
+[2026-03-13 16:16:24] INFO: No unread mails found.
+[2026-03-13 16:16:40] INFO: connected to mail
+[2026-03-13 16:16:40] INFO: Database connection successful. Starting server...
+[2026-03-13 16:16:40] INFO: listening to server 3000
+[2026-03-13 16:16:43] INFO: IMAP connected
+[2026-03-13 16:16:43] INFO: Inbox opened: 86 messages
+[2026-03-13 16:16:43] INFO: Listening for new mail...
+[2026-03-13 16:16:44] INFO: No unread mails found.
+[2026-03-13 16:16:47] INFO: connected to mail
+[2026-03-13 16:16:47] INFO: Database connection successful. Starting server...
+[2026-03-13 16:16:47] INFO: listening to server 3000
+[2026-03-13 16:16:49] INFO: IMAP connected
+[2026-03-13 16:16:49] INFO: Inbox opened: 86 messages
+[2026-03-13 16:16:49] INFO: Listening for new mail...
+[2026-03-13 16:16:49] INFO: No unread mails found.
+[2026-03-13 16:18:50] INFO: connected to mail
+[2026-03-13 16:18:50] INFO: Database connection successful. Starting server...
+[2026-03-13 16:18:50] INFO: listening to server 3000
+[2026-03-13 16:18:52] INFO: IMAP connected
+[2026-03-13 16:18:52] INFO: Inbox opened: 86 messages
+[2026-03-13 16:18:52] INFO: Listening for new mail...
+[2026-03-13 16:18:52] INFO: No unread mails found.
+[2026-03-13 16:18:57] INFO: connected to mail
+[2026-03-13 16:18:57] INFO: Database connection successful. Starting server...
+[2026-03-13 16:18:57] INFO: listening to server 3000
+[2026-03-13 16:19:01] INFO: connected to mail
+[2026-03-13 16:19:01] INFO: Database connection successful. Starting server...
+[2026-03-13 16:19:01] INFO: listening to server 3000
+[2026-03-13 16:19:03] INFO: IMAP connected
+[2026-03-13 16:19:04] INFO: connected to mail
+[2026-03-13 16:19:04] INFO: Database connection successful. Starting server...
+[2026-03-13 16:19:04] INFO: listening to server 3000
+[2026-03-13 16:19:06] INFO: IMAP connected
+[2026-03-13 16:19:07] INFO: Inbox opened: 86 messages
+[2026-03-13 16:19:07] INFO: Listening for new mail...
+[2026-03-13 16:19:07] INFO: No unread mails found.
+[2026-03-13 16:19:24] INFO: connected to mail
+[2026-03-13 16:19:24] INFO: Database connection successful. Starting server...
+[2026-03-13 16:19:24] INFO: listening to server 3000
+[2026-03-13 16:19:26] INFO: IMAP connected
+[2026-03-13 16:19:26] INFO: Inbox opened: 86 messages
+[2026-03-13 16:19:26] INFO: Listening for new mail...
+[2026-03-13 16:19:26] INFO: No unread mails found.
+[2026-03-13 16:20:02] INFO: connected to mail
+[2026-03-13 16:20:02] INFO: Database connection successful. Starting server...
+[2026-03-13 16:20:02] INFO: listening to server 3000
+[2026-03-13 16:20:05] INFO: IMAP connected
+[2026-03-13 16:20:05] INFO: Inbox opened: 86 messages
+[2026-03-13 16:20:05] INFO: Listening for new mail...
+[2026-03-13 16:20:06] INFO: No unread mails found.
+[2026-03-13 16:20:09] INFO: connected to mail
+[2026-03-13 16:20:09] INFO: Database connection successful. Starting server...
+[2026-03-13 16:20:09] INFO: listening to server 3000
+[2026-03-13 16:20:12] INFO: IMAP connected
+[2026-03-13 16:20:13] INFO: connected to mail
+[2026-03-13 16:20:13] INFO: Database connection successful. Starting server...
+[2026-03-13 16:20:13] INFO: listening to server 3000
+[2026-03-13 16:20:15] INFO: IMAP connected
+[2026-03-13 16:20:15] INFO: Inbox opened: 86 messages
+[2026-03-13 16:20:15] INFO: Listening for new mail...
+[2026-03-13 16:20:15] INFO: No unread mails found.
+[2026-03-13 16:20:20] INFO: connected to mail
+[2026-03-13 16:20:20] INFO: Database connection successful. Starting server...
+[2026-03-13 16:20:20] INFO: listening to server 3000
+[2026-03-13 16:20:22] INFO: IMAP connected
+[2026-03-13 16:20:23] INFO: Inbox opened: 86 messages
+[2026-03-13 16:20:23] INFO: Listening for new mail...
+[2026-03-13 16:20:23] INFO: No unread mails found.
+[2026-03-13 16:20:33] INFO: connected to mail
+[2026-03-13 16:20:33] INFO: Database connection successful. Starting server...
+[2026-03-13 16:20:33] INFO: listening to server 3000
+[2026-03-13 16:20:34] INFO: IMAP connected
+[2026-03-13 16:20:35] INFO: Inbox opened: 86 messages
+[2026-03-13 16:20:35] INFO: Listening for new mail...
+[2026-03-13 16:20:35] INFO: No unread mails found.
+[2026-03-13 16:20:44] INFO: connected to mail
+[2026-03-13 16:20:44] ERROR: Uncaught Exception: logger is not defined
+[2026-03-13 16:20:46] INFO: IMAP connected
+[2026-03-13 16:20:46] INFO: Inbox opened: 86 messages
+[2026-03-13 16:20:46] INFO: Listening for new mail...
+[2026-03-13 16:20:48] INFO: connected to mail
+[2026-03-13 16:20:48] ERROR: Uncaught Exception: logger is not defined
+[2026-03-13 16:20:50] INFO: IMAP connected
+[2026-03-13 16:20:50] INFO: Inbox opened: 86 messages
+[2026-03-13 16:20:50] INFO: Listening for new mail...
+[2026-03-13 16:20:51] INFO: No unread mails found.
+[2026-03-13 16:21:08] INFO: connected to mail
+[2026-03-13 16:21:08] ERROR: Uncaught Exception: logger is not defined
+[2026-03-13 16:21:10] INFO: IMAP connected
+[2026-03-13 16:21:11] INFO: Inbox opened: 86 messages
+[2026-03-13 16:21:11] INFO: Listening for new mail...
+[2026-03-13 16:21:11] INFO: No unread mails found.
+[2026-03-13 16:22:16] INFO: connected to mail
+[2026-03-13 16:22:16] ERROR: Uncaught Exception: logger is not defined
+[2026-03-13 16:22:18] INFO: IMAP connected
+[2026-03-13 16:22:19] INFO: Inbox opened: 86 messages
+[2026-03-13 16:22:19] INFO: Listening for new mail...
+[2026-03-13 16:22:19] INFO: No unread mails found.
+[2026-03-13 16:25:21] INFO: connected to mail
+[2026-03-13 16:25:21] INFO: Queue processor started (interval: 5s)
+[2026-03-13 16:25:21] INFO: Database connection successful. Starting server...
+[2026-03-13 16:25:21] INFO: listening to server 3000
+[2026-03-13 16:25:23] INFO: IMAP connected
+[2026-03-13 16:25:24] INFO: Inbox opened: 86 messages
+[2026-03-13 16:25:24] INFO: Listening for new mail...
+[2026-03-13 16:25:24] INFO: No unread mails found.
+[2026-03-13 16:25:43] INFO: connected to mail
+[2026-03-13 16:25:43] INFO: Queue processor started (interval: 5s)
+[2026-03-13 16:25:43] INFO: Database connection successful. Starting server...
+[2026-03-13 16:25:43] INFO: listening to server 3000
+[2026-03-13 16:25:45] INFO: IMAP connected
+[2026-03-13 16:25:46] INFO: Inbox opened: 86 messages
+[2026-03-13 16:25:46] INFO: Listening for new mail...
+[2026-03-13 16:25:46] INFO: No unread mails found.
+[2026-03-13 16:26:07] INFO: prompt text
+[2026-03-13 16:26:07] INFO: Sending
+[2026-03-13 16:26:07] INFO: ext type in upload:
+[2026-03-13 16:26:07] INFO: Sending content to Claude for extraction with system prompt
+[2026-03-13 16:26:14] INFO: Received response from Claude
+[2026-03-13 16:26:14] INFO: Logging LLM usage for document extraction
+[2026-03-13 16:26:14] INFO: extraction successful for file
+[2026-03-13 16:26:14] INFO: [Cost Tracker] Logged API usage: $0.0162
+[2026-03-13 16:26:25] INFO: in submit
+[2026-03-13 16:26:25] INFO: Field value before date formatting:
+[2026-03-13 16:26:25] INFO: Parsed date:
+[2026-03-13 16:26:25] INFO: Field value before date formatting:
+[2026-03-13 16:26:25] INFO: Parsed date:
+[2026-03-13 16:26:27] INFO: Post response status:
+[2026-03-13 16:26:27] INFO: Data submitted and logged successfully for document ID:

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-
+import logger from '../Connections/Logger.js';
 const logLLMUsage = async (dbManager, usageData) => {
   try {
     const inputTokens = usageData.response.usage?.input_tokens || 0;
@@ -35,10 +35,10 @@ const logLLMUsage = async (dbManager, usageData) => {
     };
 
     await dbManager.insert("api_usage_logs", log_response_data, ["id"], false);
-    console.log(`[Cost Tracker] Logged API usage: $${totalCost.toFixed(4)}`);
+    logger.info(`[Cost Tracker] Logged API usage: $${totalCost.toFixed(4)}`);
     return log_response_data;
   } catch (err) {
-    console.error("Failed to log LLM usage:", err);
+    logger.error("Failed to log LLM usage:", err);
     // We intentionally don't throw an error here so the main flow isn't interrupted
   }
 };
