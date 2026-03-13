@@ -4,3 +4,5 @@ node_modules
 uploads
 attachmentsQueue.json
 processedQueue.json
+logs
+app-*.log

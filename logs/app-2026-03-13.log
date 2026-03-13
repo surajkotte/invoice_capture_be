@@ -274,3 +274,36 @@
 [2026-03-13 16:26:25] INFO: Parsed date:
 [2026-03-13 16:26:27] INFO: Post response status:
 [2026-03-13 16:26:27] INFO: Data submitted and logged successfully for document ID:
+[2026-03-13 16:36:07] ERROR: IMAP error: read ECONNRESET
+[2026-03-13 16:36:07] INFO: Reconnecting in 5 seconds...
+[2026-03-13 16:36:07] INFO: Reconnecting in 5 seconds...
+[2026-03-13 16:36:07] INFO: Connection closed
+[2026-03-13 16:36:07] INFO: Reconnecting in 5 seconds...
+[2026-03-13 16:36:12] INFO: connected to mail
+[2026-03-13 16:36:15] INFO: IMAP connected
+[2026-03-13 16:36:16] INFO: Inbox opened: 86 messages
+[2026-03-13 16:36:16] INFO: Listening for new mail...
+[2026-03-13 16:36:17] INFO: No unread mails found.
+[2026-03-13 16:42:03] INFO: Checking connection for system:
+[2026-03-13 16:42:04] INFO: Checking connection for system:
+[2026-03-13 16:42:05] INFO: Filters in get registration data:
+[2026-03-13 16:42:05] INFO: Checking connection for system:
+[2026-03-13 16:42:05] INFO: Total registration data count:
+[2026-03-13 16:42:05] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:42:05] INFO: Filters in get registration data:
+[2026-03-13 16:42:05] INFO: Total registration data count:
+[2026-03-13 16:42:05] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:42:06] INFO: Filters in get registration data:
+[2026-03-13 16:42:06] INFO: Total registration data count:
+[2026-03-13 16:42:06] INFO: Fetched registration data successfully with filters
+[2026-03-13 16:42:06] INFO: Checking connection for system:
+[2026-03-13 16:43:05] INFO: API logs retrieved successfully
+[2026-03-13 16:43:05] INFO: API logs retrieved successfully
+[2026-03-13 16:44:18] INFO: connected to mail
+[2026-03-13 16:44:18] INFO: Queue processor started (interval: 5s)
+[2026-03-13 16:44:18] INFO: Database connection successful. Starting server...
+[2026-03-13 16:44:18] INFO: listening to server 3000
+[2026-03-13 16:44:21] INFO: IMAP connected
+[2026-03-13 16:44:22] INFO: Inbox opened: 86 messages
+[2026-03-13 16:44:22] INFO: Listening for new mail...
+[2026-03-13 16:44:22] INFO: No unread mails found.
