@@ -672,16 +672,58 @@ Follow these rules strictly:
 - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 - ${prompttext}
 `;
+
+      let system_prompt1 = `
+      You must output a single JSON object containing two main elements:
+      1. An object named "header_fields" containing only the exact field names defined in ${Header_Fields}.
+2. An array named "item_fields" containing objects with the exact field names defined in ${Item_Fields}.
+
+Field names must match exactly with no underscores or variations unless explicitly defined in the schema variables. If a field is missing from the document, its value must be set to an empty string ("").
+Follow these business logic rules strictly during extraction:
+
+1. LINE ITEM CAPTURE: Extract ALL line items present in the document, even if they span multiple pages or are only partially readable. Aggregate all items into the single "item_fields" array. Do not extract page headers, footers, or intermediary subtotal lines as line items.
+
+2. TRANSLATION & PRESERVATION: If any descriptive text (e.g., item descriptions, vendor notes) is not in English, translate it to English before inserting it into the JSON. You MUST NOT translate or alter numeric values, invoice numbers, legal entity names, product codes, or tax identifiers. Extract data exactly as it appears in the document, preserving all native numeric formatting.
+
+3. NUMERIC NORMALIZATION: Keep all numeric values (amounts, quantities, rates) as pure numbers. Do not include currency symbols, abbreviations, or descriptive text in any amount or quantity fields.
+4. - Ensure tax fields are correctly extracted:
+  - "tax_rate" → numeric value (e.g., 18)
+  - "tax_code" → alphanumeric code (e.g., "V1")
+5. CURRENCY MAPPING (ISO 4217): 
+   - Put the currency code strictly in the designated "Currency" fields of both the header and item levels.
+   - If a currency symbol is present in the document (e.g., "$", "€", "£"), translate it to its standard 3-letter ISO 4217 code (e.g., "USD", "EUR", "GBP"). 
+   - If the currency is not explicitly detected in the Header section but is present in the line items, you must infer and fill the Header "Currency" field using the currency found at the line item level.
+
+6. TAX FIELD EXTRACTION:
+   - "tax_rate" must be extracted as a pure numeric value representing the percentage (e.g., 18).
+   - "tax_code" must be extracted as the exact alphanumeric identifier present (e.g., "V1", "E").
+
+7. GROSS AMOUNT DISAMBIGUATION: 
+   - Header field gross amounts and Item-level gross amounts represent different mathematical aggregations and are not the same. 
+   - Extract the exact, final total gross amount for the document (including all taxes, discounts, and fees) into the Header gross amount field. 
+   - Extract the distinct, specific gross amount for each individual line item into the corresponding item-level gross amount field. Do not sum item amounts to fabricate the header amount.
+
+8. PAYMENT TERMS CODING: "Payment Terms" must be extracted as a strict 4-character alphanumeric value corresponding to standard ERP codes (e.g., '0001', 'NT30'). Do not extract natural language descriptions of the payment terms.
+
+9. ENTITY RESOLUTION (VENDOR VS. COMPANY):
+   - Analyze the document context to determine if it is an Invoice or a Credit Note.
+   - For an INVOICE: The vendor is the entity delivering goods/services (the supplier), and the company is the entity receiving them (the buyer). Map the supplier to the Vendor fields, and the buyer to the Company fields.
+   - For a CREDIT NOTE: Reverse this logic. The entity issuing the credit note (the supplier) maps to the Company fields, and the entity receiving the credit (the buyer) maps to the Vendor fields.
+11.
+   
+10. CUSTOM INSTRUCTIONS: ${prompttext}
+
+`;
       const startTime = Date.now();
       logger.info(
         "Sending content to Claude for extraction with system prompt",
-        { system_prompt, fileName: req.file.filename },
+        { system_prompt1, fileName: req.file.filename },
       );
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
         temperature: 0,
-        system: system_prompt,
+        system: system_prompt1,
         messages: [{ role: "user", content: contentBlocks }],
       });
       logger.info("Received response from Claude");
@@ -743,7 +785,7 @@ Follow these rules strictly:
   },
   async submit(req, res) {
     const { data, domain, port, layoutHash, sceTemplate } = req.body;
-  
+
     const tokenid = req.tokenid;
     const token = req.cookies.token;
     try {
@@ -1282,6 +1324,54 @@ Follow these rules strictly:
 - Extract data exactly as it appears in the document (except translations when needed).
 - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 `;
+const system_prompt1 = `
+<system_instruction>
+You are an expert financial data extraction and autonomous accounts payable system. Your absolute objective is to analyze the provided document and extract the required data exactly according to the schema.
+
+Extract ONLY information explicitly present in the document. Never infer or guess values that are not present. Return the output STRICTLY as a valid, well-formed JSON object. Do NOT wrap the output in Markdown code blocks, backticks, parenthesis, or provide any conversational text, notes, or metadata.
+</system_instruction>
+
+<schema_definition>
+You must output a single JSON object containing two main elements:
+1. An object named "header_fields" containing only the exact field names defined in ${Header_Fields}.
+2. An array named "item_fields" containing objects with the exact field names defined in ${Item_Fields}.
+
+Field names must match exactly with no underscores or variations unless explicitly defined in the schema variables. If a field is missing from the document, its value must be set to an empty string ("").
+</schema_definition>
+
+<extraction_rules>
+Follow these business logic rules strictly during extraction:
+
+1. LINE ITEM CAPTURE: Extract ALL line items present in the document, even if they span multiple pages or are only partially readable. Aggregate all items into the single "item_fields" array. Do not extract page headers, footers, or intermediary subtotal lines as line items.
+
+2. TRANSLATION & PRESERVATION: If any descriptive text (e.g., item descriptions, vendor notes) is not in English, translate it to English before inserting it into the JSON. You MUST NOT translate or alter numeric values, invoice numbers, legal entity names, product codes, or tax identifiers. Extract data exactly as it appears in the document, preserving all native numeric formatting.
+
+3. NUMERIC NORMALIZATION: Keep all numeric values (amounts, quantities, rates) as pure numbers. Do not include currency symbols, abbreviations, or descriptive text in any amount or quantity fields.
+
+4. CURRENCY MAPPING (ISO 4217): 
+   - Put the currency code strictly in the designated "Currency" fields of both the header and item levels.
+   - If a currency symbol is present in the document (e.g., "$", "€", "£"), translate it to its standard 3-letter ISO 4217 code (e.g., "USD", "EUR", "GBP"). 
+   - If the currency is not explicitly detected in the Header section but is present in the line items, you must infer and fill the Header "Currency" field using the currency found at the line item level.
+
+5. TAX FIELD EXTRACTION:
+   - "tax_rate" must be extracted as a pure numeric value representing the percentage (e.g., 18).
+   - "tax_code" must be extracted as the exact alphanumeric identifier present (e.g., "V1", "E").
+
+6. GROSS AMOUNT DISAMBIGUATION: 
+   - Header field gross amounts and Item-level gross amounts represent different mathematical aggregations and are not the same. 
+   - Extract the exact, final total gross amount for the document (including all taxes, discounts, and fees) into the Header gross amount field. 
+   - Extract the distinct, specific gross amount for each individual line item into the corresponding item-level gross amount field. Do not sum item amounts to fabricate the header amount.
+
+7. PAYMENT TERMS CODING: "Payment Terms" must be extracted as a strict 4-character alphanumeric value corresponding to standard ERP codes (e.g., '0001', 'NT30'). Do not extract natural language descriptions of the payment terms.
+
+8. ENTITY RESOLUTION (VENDOR VS. COMPANY):
+   - Analyze the document context to determine if it is an Invoice or a Credit Note.
+   - For an INVOICE: The vendor is the entity delivering goods/services (the supplier), and the company is the entity receiving them (the buyer). Map the supplier to the Vendor fields, and the buyer to the Company fields.
+   - For a CREDIT NOTE: Reverse this logic. The entity issuing the credit note (the supplier) maps to the Company fields, and the entity receiving the credit (the buyer) maps to the Vendor fields.
+
+9. CUSTOM INSTRUCTIONS: $${promptText}
+</extraction_rules>
+`;
       const startTime = Date.now();
       logger.info(
         "Sending content to Claude for extraction with uploaded prompt and file",
@@ -1437,19 +1527,24 @@ Follow these rules strictly:
         size,
         contentType,
       });
+      let file_type = "";
       switch (contentType) {
         case "application/pdf":
           mediaType = "application/pdf";
+          file_type = "pdf";
           break;
         case "text/xml":
           mediaType = "application/xml";
+          file_type = "xml";
           break;
         case ".txt":
           mediaType = "text/plain";
+          file_type = "txt";
           break;
         case ".docx":
           mediaType =
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          file_type = "docx";
           break;
         default:
           throw new Error({ error: "Unsupported file type" });
@@ -1518,6 +1613,48 @@ Follow these rules strictly:
 - Check if company name and vendor are correct.In general vendor name is who is delivering goods or services and company name is who is receiving goods or services. So, if the document is an invoice, then vendor name is generally the name of the supplier and company name is generally the name of the buyer. But in case of credit note its generally opposite. So, based on the context of the document, make sure to correctly identify and extract vendor name and company name in the relevant fields.
 - ${prompt}
 `;
+
+ let system_prompt1 = `
+      You must output a single JSON object containing two main elements:
+      1. An object named "header_fields" containing only the exact field names defined in ${Header_Fields}.
+2. An array named "item_fields" containing objects with the exact field names defined in ${Item_Fields}.
+
+Field names must match exactly with no underscores or variations unless explicitly defined in the schema variables. If a field is missing from the document, its value must be set to an empty string ("").
+Follow these business logic rules strictly during extraction:
+
+1. LINE ITEM CAPTURE: Extract ALL line items present in the document, even if they span multiple pages or are only partially readable. Aggregate all items into the single "item_fields" array. Do not extract page headers, footers, or intermediary subtotal lines as line items.
+
+2. TRANSLATION & PRESERVATION: If any descriptive text (e.g., item descriptions, vendor notes) is not in English, translate it to English before inserting it into the JSON. You MUST NOT translate or alter numeric values, invoice numbers, legal entity names, product codes, or tax identifiers. Extract data exactly as it appears in the document, preserving all native numeric formatting.
+
+3. NUMERIC NORMALIZATION: Keep all numeric values (amounts, quantities, rates) as pure numbers. Do not include currency symbols, abbreviations, or descriptive text in any amount or quantity fields.
+4. - Ensure tax fields are correctly extracted:
+  - "tax_rate" → numeric value (e.g., 18)
+  - "tax_code" → alphanumeric code (e.g., "V1")
+5. CURRENCY MAPPING (ISO 4217): 
+   - Put the currency code strictly in the designated "Currency" fields of both the header and item levels.
+   - If a currency symbol is present in the document (e.g., "$", "€", "£"), translate it to its standard 3-letter ISO 4217 code (e.g., "USD", "EUR", "GBP"). 
+   - If the currency is not explicitly detected in the Header section but is present in the line items, you must infer and fill the Header "Currency" field using the currency found at the line item level.
+
+6. TAX FIELD EXTRACTION:
+   - "tax_rate" must be extracted as a pure numeric value representing the percentage (e.g., 18).
+   - "tax_code" must be extracted as the exact alphanumeric identifier present (e.g., "V1", "E").
+
+7. GROSS AMOUNT DISAMBIGUATION: 
+   - Header field gross amounts and Item-level gross amounts represent different mathematical aggregations and are not the same. 
+   - Extract the exact, final total gross amount for the document (including all taxes, discounts, and fees) into the Header gross amount field. 
+   - Extract the distinct, specific gross amount for each individual line item into the corresponding item-level gross amount field. Do not sum item amounts to fabricate the header amount.
+
+8. PAYMENT TERMS CODING: "Payment Terms" must be extracted as a strict 4-character alphanumeric value corresponding to standard ERP codes (e.g., '0001', 'NT30'). Do not extract natural language descriptions of the payment terms.
+
+9. ENTITY RESOLUTION (VENDOR VS. COMPANY):
+   - Analyze the document context to determine if it is an Invoice or a Credit Note.
+   - For an INVOICE: The vendor is the entity delivering goods/services (the supplier), and the company is the entity receiving them (the buyer). Map the supplier to the Vendor fields, and the buyer to the Company fields.
+   - For a CREDIT NOTE: Reverse this logic. The entity issuing the credit note (the supplier) maps to the Company fields, and the entity receiving the credit (the buyer) maps to the Vendor fields.
+11.
+   
+10. CUSTOM INSTRUCTIONS: ${prompt}
+
+`;
       const startTime = Date.now();
       logger.info("Sending content to Claude for extract_image prompt", {
         filename,
@@ -1527,7 +1664,7 @@ Follow these rules strictly:
         model: "claude-sonnet-4-20250514",
         max_tokens: 20000,
         temperature: 1,
-        system: system_prompt,
+        system: system_prompt1,
         messages: [{ role: "user", content: contentBlocks }],
       });
       logger.info("Received response from Claude for extract_image prompt", {
@@ -1569,6 +1706,7 @@ Follow these rules strictly:
         model_response: response,
         processingTimeMs: processingTimeMs,
         model: "claude-sonnet-4-20250514",
+        file_type: file_type,
         payload: JSON.stringify({
           data: {
             headerData,
@@ -1584,7 +1722,7 @@ Follow these rules strictly:
         response: response,
         model: "claude-sonnet-4-20250514",
         processingTimeMs: processingTimeMs,
-        fileType: contentType,
+        fileType: file_type,
         fileName: filename,
         channel: "MAIL_EXTRACTION",
         userName: "MAIL_USER",
@@ -1684,7 +1822,7 @@ Follow these rules strictly:
           port: port,
           created_user: "BGUSER",
           file_name: fileName,
-          file_type: "MAIL_PDF",
+          file_type: payload.file_type,
           file_size: fileSize,
           system_name: domain,
           created_date: new Date(),
@@ -1702,9 +1840,9 @@ Follow these rules strictly:
         });
         await logLLMUsage(dbManager, {
           response: payload?.model_response,
-          documentId: regid,
+          document_id: regid,
           model: payload?.model || "RESTRICTED",
-          fileType: payload?.payload?.fileType || "MAIL_PDF",
+          fileType: payload?.file_type || "MAIL_PDF",
           fileName: fileName || "RESTRICTED",
           processing_time_ms: payload?.processingTimeMs || 0,
           channel: "MAIL_SUBMIT",
